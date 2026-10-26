@@ -1,0 +1,7 @@
+# Segreti: mai nel repository
+.env
+.env.*
+!.env.example
+data/cache/
+*.sqlite
+__pycache__/

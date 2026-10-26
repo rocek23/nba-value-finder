@@ -13,7 +13,7 @@ from nba_vf.ui.live import EMPTY_LIVE_MESSAGE
 from nba_vf.ui.snapshot import Snapshot, save_snapshot
 
 APP = str(Path(__file__).resolve().parents[1] / "app.py")
-PAGES = ["overview", "matches", "props", "value", "player", "coverage", "bookmakers", "backtest", "settings"]
+PAGES = ["best", "overview", "matches", "props", "value", "player", "coverage", "bookmakers", "backtest", "settings"]
 
 
 @pytest.fixture(autouse=True)
@@ -89,7 +89,7 @@ def test_live_with_snapshot_shows_real_structure_and_prices():
 
 
 def test_overview_open_analysis_navigates_to_player():
-    at = app()
+    at = go(app(), "overview")
     at.button(key="ov_open").click().run()
     assert not at.exception, [e.value for e in at.exception]
     assert at.title[0].value == "Analisi giocatore"

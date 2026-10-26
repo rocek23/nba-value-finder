@@ -33,6 +33,15 @@ def init_state() -> None:
             st.session_state["max_age"] = float(Settings.from_env().max_quote_age_minutes)
         except ConfigError:
             pass
+    if "mode_default_done" not in st.session_state:  # alla prima apertura: Live se ci sono chiavi o dati live, altrimenti Demo
+        st.session_state["mode_default_done"] = True
+        try:
+            st_ = Settings.from_env()
+            has_keys = bool(st_.balldontlie_api_key or st_.odds_api_key)
+        except ConfigError:
+            has_keys = False
+        if has_keys or snapshot_path().exists():
+            st.session_state["mode_label"] = "Live (dati API)"
     for k in PERSIST:  # mantiene vivi i valori dei widget anche quando la pagina che li mostra non e' attiva
         if k in st.session_state:
             st.session_state[k] = st.session_state[k]

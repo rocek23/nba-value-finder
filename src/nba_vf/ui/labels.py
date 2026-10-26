@@ -74,3 +74,27 @@ def pct(x: float | None, digits: int = 1) -> str:
 
 def num(x: float | None, digits: int = 2) -> str:
     return "—" if x is None or x != x else f"{x:.{digits}f}"
+
+
+TEAM_NAMES = {
+    "ATL": "Hawks", "BOS": "Celtics", "BKN": "Nets", "CHA": "Hornets", "CHI": "Bulls", "CLE": "Cavaliers",
+    "DAL": "Mavericks", "DEN": "Nuggets", "DET": "Pistons", "GSW": "Warriors", "HOU": "Rockets", "IND": "Pacers",
+    "LAC": "Clippers", "LAL": "Lakers", "MEM": "Grizzlies", "MIA": "Heat", "MIL": "Bucks", "MIN": "Timberwolves",
+    "NOP": "Pelicans", "NYK": "Knicks", "OKC": "Thunder", "ORL": "Magic", "PHI": "76ers", "PHX": "Suns",
+    "POR": "Trail Blazers", "SAC": "Kings", "SAS": "Spurs", "TOR": "Raptors", "UTA": "Jazz", "WAS": "Wizards",
+}
+
+
+def team_label(abbr: str | None) -> str:
+    """'LAL' -> 'Lakers (LAL)'; sigle sconosciute (es. dati demo) restano com'e'."""
+    if not abbr:
+        return "—"
+    name = TEAM_NAMES.get(str(abbr).upper())
+    return f"{name} ({abbr})" if name else str(abbr)
+
+
+def game_title(away: str | None, home: str | None) -> str:
+    """Titolo leggibile della partita: 'Celtics @ Lakers'."""
+    def short(x):
+        return TEAM_NAMES.get(str(x).upper(), str(x)) if x else "?"
+    return f"{short(away)} @ {short(home)}"

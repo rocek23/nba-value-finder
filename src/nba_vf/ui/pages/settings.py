@@ -73,7 +73,8 @@ def render() -> None:
             c1, c2, c3 = st.columns(3)
             days = c1.number_input("Giorni in avanti", 0, 7, 1, key="lv_days")
             events = c2.number_input("Partite al massimo", 1, 15, 8, key="lv_events")
-            players = c3.number_input("Giocatori con storico (max)", 5, 120, 30, key="lv_players")
+            players = c3.number_input("Giocatori con storico (0 = tutti)", 0, 400, 0, key="lv_players",
+                                      help="Di default si scarica lo storico di tutti i giocatori che compaiono nelle quote (stagione in corso e precedente).")
             u1, u2 = st.columns(2)
             use_odds = u1.toggle("The Odds API (quote)", value=True, key="lv_odds")
             use_bdl = u2.toggle("BALLDONTLIE (props, piano GOAT)", value=True, key="lv_bdl")
@@ -82,7 +83,7 @@ def render() -> None:
                 st.caption(f"Stima crediti The Odds API: ~{est} (mercati × regioni × partite, secondo la documentazione: **Da verificare** sul tuo piano). "
                            "Il prelievo parte solo quando premi il pulsante: le pagine non chiamano mai le API da sole.")
             if st.button("Aggiorna dati live", type="primary", key="lv_go"):
-                shell.run_refresh(CollectOptions(days_ahead=int(days), max_events=int(events), max_players=int(players),
+                shell.run_refresh(CollectOptions(days_ahead=int(days), max_events=int(events), max_players=int(players) or None,
                                                  use_odds_api=use_odds, use_balldontlie_props=use_bdl))
                 st.rerun()
         st.markdown("**Stato dei provider (ultimo prelievo)**")

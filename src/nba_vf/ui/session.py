@@ -12,7 +12,7 @@ from ..config import ConfigError, Settings
 from ..model.config import ModelConfig
 from ..model.engine import PlayerPrediction, ValueEngine
 from ..models import utc_now
-from .board import Board, BoardParams, annotate, build_board, context_for
+from .board import Board, BoardParams, annotate, build_board, context_for, usable_logs
 from .labels import normalize_name
 from .bundle import DataBundle
 from .demo import build_demo_bundle
@@ -89,7 +89,7 @@ def _detail_prediction(fingerprint: str, key: str, ci_level: float, minutes_over
     engine = ValueEngine(ModelConfig(n_boot=200, ci_level=ci_level))
     engine.fit_prior(_bundle.logs)
     first = next((q for q in _bundle.quotes if normalize_name(q.player_name) == key), None)
-    return engine.predict(_bundle.logs[key], context_for(_bundle, key, first, minutes_override))
+    return engine.predict(usable_logs(_bundle, key, first), context_for(_bundle, key, first, minutes_override))
 
 
 def detail_prediction(bundle: DataBundle, key: str, minutes_override: float | None = None) -> PlayerPrediction:

@@ -20,11 +20,12 @@ PAGES = {
     "props": st.Page("views/props.py", title="Player Props", icon=":material/list:", url_path="props"),
     "value": st.Page("views/value.py", title="Value Finder", icon=":material/search:", url_path="value-finder"),
     "giocatore": st.Page("views/player.py", title="Analisi giocatore", icon=":material/person:", url_path="giocatore"),
+    "copertura": st.Page("views/coverage.py", title="Copertura dati", icon=":material/fact_check:", url_path="copertura"),
     "bookmaker": st.Page("views/bookmakers.py", title="Confronto bookmaker", icon=":material/compare_arrows:", url_path="bookmaker"),
     "backtest": st.Page("views/backtest.py", title="Storico e backtesting", icon=":material/query_stats:", url_path="backtesting"),
     "impostazioni": st.Page("views/settings.py", title="Impostazioni e API", icon=":material/settings:", url_path="impostazioni"),
 }
 st.session_state["_pages"] = PAGES
 navigation = st.navigation({"Analisi": [PAGES[k] for k in ("overview", "partite", "props", "value", "giocatore")],
-                            "Strumenti": [PAGES[k] for k in ("bookmaker", "backtest", "impostazioni")]})
+                            "Strumenti": [PAGES[k] for k in ("copertura", "bookmaker", "backtest", "impostazioni")]})
 navigation.run()

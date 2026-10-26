@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Sequence
 
 import httpx
 
@@ -92,6 +92,9 @@ def parse_stat_row(row: dict[str, Any], teams_by_id: dict[int, str] | None = Non
         opponent_id = visitor_id if is_home else home_id
     opponent = (teams_by_id or {}).get(opponent_id) if opponent_id is not None else None
 
+    status = str(game.get("status") or "").strip()
+    if status and not status.lower().startswith("final"):
+        return None  # partita non terminata: le statistiche sarebbero parziali e non vanno usate come storico
     name = " ".join(p for p in (player.get("first_name"), player.get("last_name")) if p) or None
     return PlayerGameLog(
         source=PROVIDER,
@@ -174,7 +177,7 @@ class BalldontlieAdapter:
         self,
         api_key: str,
         *,
-        requests_per_min: int = 5,
+        requests_per_min: int = 60,
         timeout: float = 15.0,
         max_retries: int = 3,
         transport: httpx.BaseTransport | None = None,
@@ -197,6 +200,10 @@ class BalldontlieAdapter:
 
     def close(self) -> None:
         self._client.close()
+
+    @property
+    def request_count(self) -> int:
+        return self._client.request_count
 
     # -- accesso agli endpoint v1 con fallback sul prefisso ------------------------------------
     def _get_v1(self, endpoint: str, params: dict[str, Any] | None = None):
@@ -244,21 +251,40 @@ class BalldontlieAdapter:
         return self._paginate("games", {"dates[]": [value], "per_page": 100})
 
     def get_player_game_logs(
-        self, player_id: int, season_start_year: int, season_type: str = "regular"
+        self,
+        player_id: int,
+        season_start_year: int | Sequence[int],
+        season_type: str = "regular",
+        *,
+        start_date: date | str | None = None,
     ) -> list[PlayerGameLog]:
-        """Richiede il piano ALL-STAR o superiore (TierError con piano Free)."""
+        """Storico partita per partita di UN giocatore (ID ufficiale BALLDONTLIE) in una o piu' stagioni.
+
+        Richiede il piano ALL-STAR o superiore (TierError con piano Free). ``season_start_year`` puo' essere
+        una lista (es. [2026, 2025]): una sola richiesta paginata copre tutte le stagioni, e il giocatore
+        trasferito durante l'anno e' gia' corretto perche' ogni riga porta la squadra di quella partita.
+        ``start_date`` scarica solo le partite da quella data in poi (aggiornamento incrementale). Le righe
+        sono deduplicate per partita; partite non terminate e playoff (con season_type="regular") sono escluse.
+        """
         teams = self.get_teams()
-        rows = self._paginate(
-            "stats",
-            {
-                "player_ids[]": [player_id],
-                "seasons[]": [season_start_year],
-                "season_type": season_type,
-                "per_page": 100,
-            },
-        )
-        logs = [parse_stat_row(r, teams) for r in rows]
-        return sorted((l for l in logs if l is not None), key=lambda l: l.game_date)
+        seasons = [int(season_start_year)] if isinstance(season_start_year, (int, float)) else [int(x) for x in season_start_year]
+        params: dict[str, Any] = {
+            "player_ids[]": [player_id],
+            "seasons[]": seasons,
+            "season_type": season_type,
+            "per_page": 100,
+        }
+        if start_date is not None:
+            params["start_date"] = start_date.isoformat() if isinstance(start_date, date) else str(start_date)
+        rows = self._paginate("stats", params)
+        if season_type == "regular":
+            rows = [r for r in rows if not (r.get("game") or {}).get("postseason")]
+        by_game: dict[str, PlayerGameLog] = {}
+        for r in rows:
+            log = parse_stat_row(r, teams)
+            if log is not None:
+                by_game[log.game_id] = log
+        return sorted(by_game.values(), key=lambda l: (l.game_date, l.game_id))
 
     def get_injuries(self) -> list[dict[str, Any]]:
         """Richiede ALL-STAR o superiore."""

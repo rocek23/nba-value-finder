@@ -53,6 +53,7 @@ class DataBundle:
     messages: list[tuple[str, str]] = field(default_factory=list)  # (livello, testo): info | warning | error
     collection_issues: dict[str, list[str]] = field(default_factory=dict)  # chiave giocatore -> problemi nella raccolta
     fingerprint: str = ""
+    retrieval: dict = field(default_factory=dict)  # stato del recupero dello storico (solo live)
 
     @property
     def is_demo(self) -> bool:

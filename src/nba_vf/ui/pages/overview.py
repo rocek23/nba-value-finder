@@ -55,6 +55,16 @@ def render() -> None:
     ])
     st.write("")
 
+    if b.quotes:
+        from ..coverage import COMPLETE, INSUFFICIENT, NONE, PARTIAL, build_coverage
+
+        cov = build_coverage(b, board)
+        sc = cov.state_counts
+        st.caption(f"Copertura dello storico: {sc[COMPLETE]} giocatori completi · {sc[PARTIAL]} parziali · "
+                   f"{sc[INSUFFICIENT] + sc[NONE]} insufficienti o senza storico · {cov.n_evaluable} quote valutabili su {cov.n_quotes}, "
+                   f"{cov.n_priced if cov.n_priced is not None else 0} prezzate.")
+        st.page_link(pages["copertura"], label="Dettaglio copertura dati", icon=":material/fact_check:")
+
     # ---- avvisi sulle stime -----------------------------------------------------------------
     warnings = [m for m in b.messages if not m[1].startswith("MODALITÀ DEMO")] + (board.warnings if board else [])
     with st.expander(f"Avvisi sulle stime ({len(warnings)})", expanded=bool(warnings)):

@@ -10,6 +10,7 @@ Regole:
 
 from __future__ import annotations
 
+import time
 from collections import Counter
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
@@ -31,13 +32,16 @@ EMPTY_LIVE_MESSAGE = (
     "mancanti con dati inventati: per vedere un esempio passa alla modalità Demo."
 )
 LOGS_MAX_AGE = timedelta(hours=12)
+MAX_PLAYERS_HARD_CAP = 400  # protezione: oltre questo numero il tempo di recupero non e' piu' ragionevole
 
 
 @dataclass(frozen=True)
 class CollectOptions:
     days_ahead: int = 1
     max_events: int = 8
-    max_players: int = 30
+    max_players: int | None = None  # None = tutti i giocatori che compaiono nelle quote
+    seasons_back: int = 1  # stagioni precedenti da scaricare oltre a quella in corso (1 = 2026-27 e 2025-26)
+    time_budget_s: float = 600.0  # oltre questo tempo il recupero si ferma e prosegue al prossimo aggiornamento
     min_games_current: int = 25
     use_odds_api: bool = True
     use_balldontlie_props: bool = True
@@ -123,7 +127,6 @@ class LiveCollector:
                             for q in res.quotes:
                                 api_quotes.append(replace(q, home_team=home, away_team=away,
                                                           commence_time=parse_iso(g.get("datetime") or g.get("date"))))
-                                bdl_ids[str(q.player_id)] = q.player_id
                             n_q += len(res.quotes)
                     detail = f"{n_q} quote"
                 except TierError as exc:
@@ -151,36 +154,89 @@ class LiveCollector:
 
         # ---- storico giocatori -----------------------------------------------------------------
         counts: Counter[str] = Counter()
+        ids_seen: dict[str, Counter[int]] = {}
         for q in snap.quotes:
             key = normalize_name(q.player_name)
             counts[key] += 1
             names_by_key.setdefault(key, q.player_name or key)
             if q.player_id is not None and q.provider == "balldontlie":
-                bdl_ids[key] = q.player_id
-        targets = [k for k, _ in counts.most_common(opts.max_players)]
-        if len(counts) > len(targets):
-            snap.messages.append(["info", f"Storico richiesto per {len(targets)} giocatori su {len(counts)} (limite impostato: {opts.max_players})."])
+                ids_seen.setdefault(key, Counter())[int(q.player_id)] += 1
+        bdl_ids = {k: c.most_common(1)[0][0] for k, c in ids_seen.items()}  # ID ufficiali BALLDONTLIE
+        homonyms = {k for k, c in ids_seen.items() if len(c) > 1}  # stesso nome, ID diversi: non si indovina
+        cap = opts.max_players if opts.max_players else MAX_PLAYERS_HARD_CAP
+        ranked = [k for k, _ in counts.most_common()]
+        targets = ranked[:cap]
+        if len(ranked) > len(targets):
+            snap.messages.append(["warning", f"Storico richiesto per {len(targets)} giocatori su {len(ranked)} (limite impostato: {cap}). "
+                                             "I restanti restano non valutati."])
         season = current_season_start_year(now.date())
+        seasons = [season - i for i in range(max(0, opts.seasons_back) + 1)]
+        today = now.date()
+        prev_logs_all = previous.logs if previous else {}
+        prev_seasons_all = previous.logs_seasons if previous else {}
+        prev_at_all = previous.logs_fetched_at if previous else {}
+
+        def reusable(key: str) -> bool:
+            at = prev_at_all.get(key)
+            return bool(prev_logs_all.get(key)) and set(seasons) <= set(prev_seasons_all.get(key, [])) and at is not None and now - at < LOGS_MAX_AGE
+
+        order = sorted(targets, key=lambda k: (reusable(k), -counts[k]))  # prima chi ha davvero bisogno di dati
         stats_ok = {"bdl": 0, "nba": 0}
-        tier_blocked = False
-        for i, key in enumerate(targets):
-            self.progress(0.3 + 0.7 * i / max(1, len(targets)), f"Storico: {names_by_key[key]}")
-            fresh = previous and previous.logs.get(key) and previous.logs_fetched_at.get(key) and now - previous.logs_fetched_at[key] < LOGS_MAX_AGE
-            if fresh:
-                snap.logs[key] = previous.logs[key]
-                snap.logs_fetched_at[key] = previous.logs_fetched_at[key]
+        n_reused = n_incremental = n_pending = 0
+        tier_blocked = nba_disabled = False
+        nba_errors = 0
+        pending: list[str] = []
+        t0 = time.monotonic()
+        for i, key in enumerate(order):
+            self.progress(0.3 + 0.7 * i / max(1, len(order)), f"Storico {i + 1}/{len(order)}: {names_by_key[key]}")
+            prev_logs = prev_logs_all.get(key, [])
+            if reusable(key):
+                snap.logs[key] = prev_logs
+                snap.logs_fetched_at[key] = prev_at_all[key]
+                snap.logs_seasons[key] = prev_seasons_all[key]
+                n_reused += 1
                 continue
-            logs, issues = [], []
-            if self.bdl is not None and key in bdl_ids and not tier_blocked:
+            if time.monotonic() - t0 > opts.time_budget_s:  # limite di tempo: si prosegue al prossimo aggiornamento
+                pending.append(key)
+                n_pending += 1
+                if prev_logs:  # si conserva lo storico vecchio, dichiarato come non aggiornato
+                    snap.logs[key] = prev_logs
+                    snap.logs_fetched_at[key] = prev_at_all.get(key, now)
+                    snap.logs_seasons[key] = prev_seasons_all.get(key, [])
+                snap.issues[key] = ["in attesa: limite di tempo raggiunto, premi di nuovo «Aggiorna dati live» per proseguire"]
+                continue
+            logs: list[PlayerGameLog] = []
+            issues: list[str] = []
+            keep_old_stamp = False
+            fetched_ok = False  # una risposta valida del provider (anche vuota) e' un risultato, non un errore
+            if key in homonyms:
+                issues.append("nome ambiguo: più ID BALLDONTLIE per lo stesso nome, giocatore non attribuibile con certezza")
+            elif self.bdl is not None and key in bdl_ids and not tier_blocked:
+                # incrementale: solo se lo storico precedente viene tutto da BALLDONTLIE per le stesse stagioni
+                same_seasons = set(seasons) <= set(prev_seasons_all.get(key, []))
+                incremental = bool(prev_logs) and same_seasons and all(l.source == "balldontlie" for l in prev_logs)
+                start = max(l.game_date for l in prev_logs) if incremental else None
                 try:
-                    logs = self.bdl.get_player_game_logs(bdl_ids[key], season)
+                    new = self.bdl.get_player_game_logs(bdl_ids[key], seasons, start_date=start)
+                    merged = {l.game_id: l for l in (prev_logs if incremental else [])}
+                    merged.update({l.game_id: l for l in new})
+                    logs = [l for l in merged.values() if l.game_date <= today]  # nessuna partita futura
+                    fetched_ok = True
+                    n_incremental += int(incremental)
                     stats_ok["bdl"] += bool(logs)
+                    if not logs:
+                        issues.append(f"BALLDONTLIE non ha partite per questo giocatore nelle stagioni {', '.join(f'{x}-{str(x + 1)[2:]}' for x in sorted(seasons))} "
+                                      "(esordiente o mai sceso in campo)")
                 except TierError as exc:
                     tier_blocked = True
                     issues.append(f"BALLDONTLIE statistiche: piano insufficiente ({self._err(exc)})")
                 except ApiError as exc:
                     issues.append(f"BALLDONTLIE statistiche: {self._err(exc)}")
-            if not logs and self.nba is not None:
+                    if prev_logs:  # l'errore non cancella quello che si aveva (e non lo fa passare per aggiornato)
+                        logs, keep_old_stamp = prev_logs, True
+            elif self.bdl is not None and key not in bdl_ids:
+                issues.append("nessun ID BALLDONTLIE per questo giocatore (quote da altri provider)")
+            if not fetched_ok and not logs and self.nba is not None and key not in homonyms and not nba_disabled:
                 try:
                     matches = [m for m in self.nba.find_player(names_by_key[key]) if normalize_name(m.get("full_name")) == key]
                     if not matches:
@@ -190,21 +246,41 @@ class LiveCollector:
                         logs = self.nba.get_player_game_logs(pid, season)
                         if len(logs) < opts.min_games_current:
                             logs = self.nba.get_player_game_logs(pid, season - 1) + logs
+                        logs = [l for l in logs if l.game_date <= today]
+                        fetched_ok = True
                         stats_ok["nba"] += bool(logs)
+                    nba_errors = 0
                 except Exception as exc:  # rete, blocco IP, formato: si registra e si prosegue
                     issues.append(f"nba_api: {self._err(exc)}")
+                    nba_errors += 1
+                    if nba_errors >= 3:  # dopo tre errori di fila non si perde altro tempo con nba_api
+                        nba_disabled = True
+                        snap.messages.append(["warning", "nba_api non risponde (probabile blocco dell'IP del server): disattivata per questo aggiornamento."])
             if not logs and self.bdl is None and self.nba is None:
                 issues.append("nessun provider di statistiche disponibile")
-            snap.logs[key] = sorted(logs, key=lambda l: l.game_date)
-            snap.logs_fetched_at[key] = now
+            snap.logs[key] = sorted(logs, key=lambda l: (l.game_date, l.game_id))
+            snap.logs_fetched_at[key] = prev_at_all.get(key, now) if keep_old_stamp else now
+            if keep_old_stamp:
+                snap.logs_seasons[key] = prev_seasons_all.get(key, [])
+            elif fetched_ok:
+                snap.logs_seasons[key] = seasons
             if issues or not logs:
                 snap.issues[key] = issues or ["nessuna partita restituita"]
-        providers.append(_prov("Statistiche giocatori", "ok" if any(stats_ok.values()) else ("errore" if targets else "non_disponibile"),
-                               f"BALLDONTLIE: {stats_ok['bdl']} giocatori; nba_api: {stats_ok['nba']} giocatori", sum(stats_ok.values())))
+        providers.append(_prov("Statistiche giocatori", "ok" if any(stats_ok.values()) or n_reused else ("errore" if targets else "non_disponibile"),
+                               f"BALLDONTLIE: {stats_ok['bdl']} giocatori scaricati ({n_incremental} in modo incrementale), {n_reused} dalla cache; "
+                               f"nba_api: {stats_ok['nba']}; in attesa: {n_pending}", sum(stats_ok.values()) + n_reused))
+        if pending:
+            snap.messages.append(["warning", f"Recupero storico non terminato: {n_pending} giocatori in attesa (limite di tempo). Premi di nuovo «Aggiorna dati live»: riparte da dove si era fermato."])
         snap.logs = {k: v for k, v in snap.logs.items() if v}
         snap.players = {k: {"name": names_by_key[k], "team": (snap.logs[k][-1].team if k in snap.logs else None)} for k in targets}
         snap.events = events
         snap.providers = providers
+        snap.retrieval = {
+            "seasons": seasons, "players_in_quotes": len(ranked), "players_requested": len(targets), "with_logs": len(snap.logs),
+            "reused_from_cache": n_reused, "incremental": n_incremental, "pending": pending, "tier_blocked": tier_blocked,
+            "nba_api_disabled": nba_disabled, "elapsed_s": round(time.monotonic() - t0, 1),
+            "requests_bdl": getattr(self.bdl, "request_count", None), "finished_at": now.isoformat(), "complete": not pending,
+        }
         self.progress(1.0, "Completato")
         return snap
 
@@ -243,7 +319,8 @@ def bundle_from_snapshot(snap: Snapshot | None) -> DataBundle:
     return DataBundle(
         mode="live", source_label="Dati LIVE (API)", status=status, updated_at=snap.fetched_at, quotes=snap.quotes,
         logs=snap.logs, players=players, events=events, providers=providers, messages=messages,
-        collection_issues=snap.issues, fingerprint=f"live:{snap.fetched_at.isoformat()}:{len(snap.quotes)}",
+        collection_issues=snap.issues, retrieval=snap.retrieval,
+        fingerprint=f"live:{snap.fetched_at.isoformat()}:{len(snap.quotes)}:{sum(len(v) for v in snap.logs.values())}",
     )
 
 

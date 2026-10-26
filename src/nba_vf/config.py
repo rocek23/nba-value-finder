@@ -61,7 +61,7 @@ def describe_secret(value: str | None) -> str:
 class Settings:
     balldontlie_api_key: str | None = field(default=None, repr=False)
     odds_api_key: str | None = field(default=None, repr=False)
-    balldontlie_requests_per_min: int = 5
+    balldontlie_requests_per_min: int = 60
     odds_regions: tuple[str, ...] = ("eu", "us")
     nba_api_sleep_seconds: float = 1.5
     http_timeout: float = 15.0
@@ -78,7 +78,7 @@ class Settings:
         return cls(
             balldontlie_api_key=_clean(env.get("BALLDONTLIE_API_KEY")),
             odds_api_key=_clean(env.get("THE_ODDS_API_KEY")),
-            balldontlie_requests_per_min=_number(env, "BALLDONTLIE_REQUESTS_PER_MIN", 5, int, 1),
+            balldontlie_requests_per_min=_number(env, "BALLDONTLIE_REQUESTS_PER_MIN", 60, int, 1),
             odds_regions=regions,
             nba_api_sleep_seconds=_number(env, "NBA_API_SLEEP_SECONDS", 1.5, float, 0.0),
             http_timeout=_number(env, "HTTP_TIMEOUT_SECONDS", 15.0, float, 1.0),

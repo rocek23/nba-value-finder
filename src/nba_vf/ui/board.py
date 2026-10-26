@@ -7,7 +7,7 @@ quota) o dallo stake sono applicate da ``annotate`` al momento della visualizzaz
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -57,6 +57,21 @@ def prop_id(day: str, key: str, market: Market, line: float) -> str:
     return f"{day}|{key}|{market.value}|{line:g}"
 
 
+def usable_logs(bundle: DataBundle, key: str, q) -> list:
+    """Storico disponibile PRIMA della partita quotata: esclude la partita stessa e qualunque partita successiva.
+
+    Evita che una statistica nota solo a gara in corso o conclusa finisca in una previsione fatta per quella gara.
+    """
+    logs = bundle.logs.get(key) or []
+    if q is None:
+        return list(logs)
+    try:
+        cutoff = date.fromisoformat(game_day(q))
+    except ValueError:  # nessun orario d'inizio: non si puo' tagliare, si usa tutto lo storico
+        return list(logs)
+    return [l for l in logs if l.game_date < cutoff]
+
+
 def context_for(bundle: DataBundle, key: str, q, minutes_override: float | None = None) -> GameContext:
     """Contesto della partita: avversario (solo registrato) e back-to-back dedotto dallo storico del giocatore."""
     info = bundle.players.get(key)
@@ -64,7 +79,7 @@ def context_for(bundle: DataBundle, key: str, q, minutes_override: float | None 
     if info and info.team and q is not None and q.home_team and q.away_team:
         opponent = q.away_team if info.team == q.home_team else q.home_team if info.team == q.away_team else None
     b2b = None
-    logs = bundle.logs.get(key)
+    logs = usable_logs(bundle, key, q)
     if q is not None and q.commence_time and logs:
         b2b = (q.commence_time.astimezone(NY).date() - max(l.game_date for l in logs)).days == 1
     return GameContext(opponent=opponent, back_to_back=b2b, minutes_override=minutes_override)
@@ -84,7 +99,7 @@ def build_board(bundle: DataBundle, params: BoardParams = BoardParams()) -> Boar
     predictions: dict[str, PlayerPrediction] = {}
     skipped: dict[str, str] = {}
     for key, q in first_quote.items():
-        logs = bundle.logs.get(key)
+        logs = usable_logs(bundle, key, q)
         if not logs:
             reason = "; ".join(bundle.collection_issues.get(key, [])) or "nessuno storico partite disponibile"
             skipped[key] = f"storico assente — {reason}"

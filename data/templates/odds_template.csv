@@ -1,0 +1,3 @@
+bookmaker,event_date,home_team,away_team,player,market,line,side,odds,odds_format,timestamp,is_alternate,commence_time
+ESEMPIO_bookmaker,2026-01-01,Squadra A,Squadra B,Giocatore Esempio,points,24.5,over,1.85,decimal,2026-01-01T12:00:00+01:00,false,2026-01-01T20:00:00-05:00
+ESEMPIO_bookmaker,2026-01-01,Squadra A,Squadra B,Giocatore Esempio,points,24.5,under,1.95,decimal,2026-01-01T12:00:00+01:00,false,2026-01-01T20:00:00-05:00

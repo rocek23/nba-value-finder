@@ -1,0 +1,13 @@
+# Versioni minime indicative: non sono state verificate contro una matrice di compatibilita'.
+# Python 3.11+ richiesto dal progetto.
+httpx>=0.27
+python-dotenv>=1.0
+pandas>=2.0
+numpy>=1.26
+scipy>=1.11
+plotly>=5.18
+streamlit>=1.50
+nba_api>=1.4
+psycopg[binary]>=3.1
+# Necessario su Windows per i fusi orari (zoneinfo)
+tzdata>=2024.1; platform_system == "Windows"

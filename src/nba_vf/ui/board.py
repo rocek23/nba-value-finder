@@ -124,7 +124,7 @@ def build_board(bundle: DataBundle, params: BoardParams = BoardParams()) -> Boar
             "giocatore": bundle.player_name(key), "squadra": info.team if info else None,
             "market": q.market, "mercato": MARKET_IT[q.market], "linea": q.line, "side": q.side, "lato": SIDE_IT[q.side],
             "book": q.bookmaker, "bookmaker": book_label(q.bookmaker), "quota": q.odds_decimal,
-            "ts": q.reference_time, "inizio": q.commence_time, "manuale": q.source == "csv", "fonte": q.provider,
+            "ts": q.reference_time, "ts_nota": q.quote_time is not None, "inizio": q.commence_time, "manuale": q.source == "csv", "fonte": q.provider,
             "priced": False, "motivo": "", "n_partite": np.nan, "avvisi_modello": [],
         }
         row.update({c: np.nan for c in PRICED_COLUMNS})

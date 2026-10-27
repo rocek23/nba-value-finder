@@ -49,7 +49,9 @@ footer {{ visibility: hidden; }}
 
 
 def inject_css() -> None:
-    st.markdown(CSS, unsafe_allow_html=True)
+    from .widgets import CSS as WIDGET_CSS
+
+    st.markdown(CSS + WIDGET_CSS, unsafe_allow_html=True)
 
 
 def kpi(label: str, value: str, sub: str = "", color: str | None = None) -> str:

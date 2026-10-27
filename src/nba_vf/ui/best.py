@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .labels import game_title, team_label, to_local
+from .labels import fmt_age, game_title, team_label, to_local
 from .tables import best_per_prop
 
 HIGH, MEDIUM, LOW = "Alta", "Media", "Bassa"
@@ -18,8 +18,24 @@ RELIABILITY_HELP = {
     MEDIUM: "campione di almeno 25 partite, ma l'intervallo di incertezza include anche il caso di guadagno nullo o negativo",
     LOW: "meno di 25 partite di storico: la stima è molto incerta",
 }
+def quote_age_text(eta_min: float, known: bool, max_age: float | None = None) -> str:
+    """Quanto e' aggiornata la quota, dichiarando quando l'orario non e' certo."""
+    if eta_min is None or eta_min != eta_min:
+        return "da verificare"
+    age = fmt_age(float(eta_min))
+    if max_age is not None and eta_min > max_age:
+        return f"obsoleta ({age})"
+    return f"aggiornata {age}" if known else f"ottenuta {age} (orario del bookmaker da verificare)"
+
+
+def data_note(n_games: float, eta_min: float, known: bool, max_age: float | None = None) -> str:
+    """Riga di affidabilita' del dato: «Storico: 30 partite · Quota aggiornata 5 min fa»."""
+    n = "da verificare" if n_games is None or n_games != n_games else f"{int(n_games)} partite"
+    return f"Storico: {n} · Quota {quote_age_text(eta_min, known, max_age)}"
+
+
 PICK_COLUMNS = ["giocatore", "squadra", "partita", "inizio", "giocata", "bookmaker", "quota", "prob", "quota_equa",
-                "guadagno", "vincita", "affidabilita", "partite", "eta_min"]
+                "guadagno", "vincita", "affidabilita", "partite", "eta_min", "nota_dato"]
 
 
 def reliability(n_games: float, roi: float, roi_lo: float) -> str:
@@ -54,6 +70,7 @@ def build_picks(rows: pd.DataFrame, stake: float, *, include_low: bool = False, 
         "guadagno": stake * d["roi"].values, "vincita": stake * (d["quota"].values - 1),
         "affidabilita": [reliability(n, r, lo) for n, r, lo in zip(d["n_partite"], d["roi"], d["roi_lo"])],
         "partite": d["n_partite"].values, "eta_min": d["eta_min"].values,
+        "nota_dato": [data_note(n, e, bool(k)) for n, e, k in zip(d["n_partite"], d["eta_min"], d["ts_nota"])],
     })
     if not include_low:
         out = out[out["affidabilita"] != LOW]

@@ -56,7 +56,7 @@ def _sidebar(bundle) -> None:
         st.caption(DISCLAIMER)
 
 
-def begin(title: str, subtitle: str | None = None) -> Ctx:
+def begin(title: str, subtitle: str | None = None, *, show_title: bool = True) -> Ctx:
     """Inizializza la pagina e restituisce i dati. Per i pagina che non hanno nulla da mostrare usare ``need``."""
     init_state()
     T.inject_css()
@@ -68,9 +68,10 @@ def begin(title: str, subtitle: str | None = None) -> Ctx:
     else:
         st.markdown('<div class="nvf-live">● <b>MODALITÀ LIVE</b> — dati provenienti dalle API configurate; '
                     'i dati mancanti restano mancanti (nessun dato inventato).</div>', unsafe_allow_html=True)
-    st.title(title)
-    if subtitle:
-        st.caption(subtitle)
+    if show_title:
+        st.title(title)
+        if subtitle:
+            st.caption(subtitle)
     board = get_board(bundle) if bundle.quotes else None
     rows = rows_view(bundle, board) if board is not None else None
     if rows is None:

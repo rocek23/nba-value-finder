@@ -82,7 +82,10 @@ def context_for(bundle: DataBundle, key: str, q, minutes_override: float | None 
     logs = usable_logs(bundle, key, q)
     if q is not None and q.commence_time and logs:
         b2b = (q.commence_time.astimezone(NY).date() - max(l.game_date for l in logs)).days == 1
-    return GameContext(opponent=opponent, back_to_back=b2b, minutes_override=minutes_override)
+    is_home = None
+    if info and info.team and q is not None and q.home_team and q.away_team:
+        is_home = True if info.team == q.home_team else False if info.team == q.away_team else None
+    return GameContext(opponent=opponent, back_to_back=b2b, minutes_override=minutes_override, is_home=is_home)
 
 
 def build_board(bundle: DataBundle, params: BoardParams = BoardParams()) -> Board:
@@ -90,6 +93,7 @@ def build_board(bundle: DataBundle, params: BoardParams = BoardParams()) -> Boar
                       ci_level=params.ci_level)
     engine = ValueEngine(cfg)
     engine.fit_prior(bundle.logs, min_players=params.min_pool_players)
+    engine.fit_home_away(bundle.logs)
 
     # una predizione per giocatore (il contesto usa la sua prima partita in programma)
     first_quote: dict[str, object] = {}
@@ -154,7 +158,8 @@ def build_board(bundle: DataBundle, params: BoardParams = BoardParams()) -> Boar
                     if "prior_fallback_nessun_pool" in pred.fit.flags:
                         avv.append("Prior di popolazione non disponibile (pool troppo piccolo)")
                     if pred.adjustments:
-                        avv.append("Aggiustamento back-to-back applicato (verificato sullo storico)")
+                        names = {"back_to_back": "back-to-back", "casa_trasferta": "casa/trasferta"}
+                        avv.append("Aggiustamento " + " e ".join(sorted({names.get(e.factor, e.factor) for e in pred.adjustments})) + " applicato (verificato)")
                     if v.p_push > 0:
                         avv.append("Linea intera: possibile rimborso")
                     row["avvisi_modello"] = avv

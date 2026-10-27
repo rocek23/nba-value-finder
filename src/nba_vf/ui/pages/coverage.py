@@ -11,6 +11,32 @@ from ..coverage import COMPLETE, INSUFFICIENT, NONE, PARTIAL, PLAYER_COLUMNS, ST
 from ..labels import fmt_dt
 
 
+def _home_away(board) -> None:
+    """Verifica fuori campione dell'effetto casa/trasferta: applicato solo se migliora la previsione."""
+    eng = getattr(board, "engine", None) if board is not None else None
+    res = getattr(eng, "home_away", None) or {}
+    st.subheader("Casa o trasferta: verifica")
+    if not res:
+        st.info("Verifica non eseguita (servono quote e storico caricati).")
+        return
+    names = {"pts": "Punti", "reb": "Rimbalzi", "ast": "Assist", "fg3a": "Tentativi da tre"}
+    applied = [n for t, n in names.items() if res[t].applied]
+    if applied:
+        st.success("Applicato a: " + ", ".join(applied) + ". Migliora la previsione sui dati di verifica (partite più recenti, non usate per la stima).")
+    else:
+        st.info("Non applicato: con i dati caricati non è dimostrato che migliori la previsione, quindi le stime restano invariate.")
+    rows = []
+    for t, n in names.items():
+        e = res[t]
+        rows.append({"Statistica": n, "Casa / trasferta": e.ratio, "Intervallo 99%": f"{e.ci[0]:.3f} – {e.ci[1]:.3f}" if e.ci else "—",
+                     "Giocatori": e.n_players, "Partite di verifica": e.n_test_games, "Errore ridotto %": e.gain_pct, "t": e.t_stat,
+                     "Esito": "Applicato" if e.applied else "Non applicato", "Motivo": e.reason})
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", column_config={
+        "Casa / trasferta": st.column_config.NumberColumn(format="%.3f"), "Errore ridotto %": st.column_config.NumberColumn(format="%+.2f"),
+        "t": st.column_config.NumberColumn(format="%.2f")})
+    st.caption("Regola: l'effetto entra nelle stime solo se l'intervallo esclude 1 e l'errore sulle partite di verifica diminuisce in modo significativo.")
+
+
 def _retrieval(cov, b) -> None:
     r = cov.retrieval
     st.subheader("Stato del recupero dati")
@@ -71,6 +97,8 @@ def render() -> None:
         st.warning("Nessuna quota è prezzata: nessun giocatore ha abbastanza partite. Nessuna probabilità viene inventata per colmare il vuoto.")
 
     _retrieval(cov, b)
+
+    _home_away(ctx.board)
 
     st.subheader("Motivi di esclusione")
     if cov.reasons.empty:

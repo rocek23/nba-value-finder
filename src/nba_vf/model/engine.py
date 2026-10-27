@@ -19,6 +19,7 @@ from .config import LeaguePrior, ModelConfig
 from .context import ContextEffect, estimate_effects
 from .errors import InsufficientDataError
 from .fit import FittedPlayer, build_inputs, fit_arrays
+from .home_away import HomeAwayEffect, estimate_home_away
 from .predict import PraDraws, all_pmfs, pra_pmf_independent
 from .prediction import MarketPrediction
 from .prior import estimate_league_prior
@@ -42,6 +43,7 @@ class GameContext:
     opponent: str | None = None
     back_to_back: bool | None = None
     minutes_override: float | None = None
+    is_home: bool | None = None  # usato SOLO se l'effetto casa/trasferta e' stato verificato fuori campione (home_away.py)
 
 
 @dataclass
@@ -68,6 +70,7 @@ class ValueEngine:
     def __init__(self, cfg: ModelConfig | None = None, prior: LeaguePrior | None = None):
         self.cfg = cfg or ModelConfig()
         self.prior = prior or LeaguePrior.fallback()
+        self.home_away: dict[str, HomeAwayEffect] = {}  # vuoto finche' non si chiama fit_home_away: nessun effetto applicato
 
     def fit_prior(self, pool: Mapping[int, Sequence[PlayerGameLog]], min_players: int = 20) -> LeaguePrior:
         """Stima il prior di popolazione dal pool e lo adotta; con pool troppo piccolo mantiene il fallback."""
@@ -76,6 +79,11 @@ class ValueEngine:
         except ValueError:
             self.prior = LeaguePrior.fallback()
         return self.prior
+
+    def fit_home_away(self, pool: Mapping[object, Sequence[PlayerGameLog]], min_players: int = 20) -> dict[str, HomeAwayEffect]:
+        """Stima e verifica fuori campione l'effetto casa/trasferta. Senza verifica superata non cambia nessuna previsione."""
+        self.home_away = estimate_home_away(pool, seed=self.cfg.seed, min_players=min_players)
+        return self.home_away
 
     # ------------------------------------------------------------------------------------------
     def _prepare(self, logs: Sequence[PlayerGameLog]) -> list[PlayerGameLog]:
@@ -129,6 +137,13 @@ class ValueEngine:
         if context.back_to_back:
             effects = estimate_effects(clean, cfg)
             applied = [e for e in effects.values() if e.applied]
+        home_scales: dict[str, float] = {}
+        if context.is_home is not None:
+            for t, he in self.home_away.items():
+                if he.applied:
+                    f = he.factor_home if context.is_home else he.factor_away
+                    home_scales[t] = f
+                    applied.append(ContextEffect("casa_trasferta", t, he.n_players, he.n_players, he.ratio, he.ci, True, f, he.reason))
 
         base_fit = fit_arrays(inp, cfg, self.prior, minutes_override=context.minutes_override)
         base_markets = self._markets(base_fit, inp, {"minutes_override": context.minutes_override}, seed, intervals)
@@ -137,7 +152,10 @@ class ValueEngine:
         fit, markets = base_fit, base_markets
         if applied:
             scales: dict = {"minutes_override": context.minutes_override}
-            rate_scales = {e.target: e.shrunk_ratio for e in applied if e.target != "minutes"}
+            rate_scales: dict[str, float] = {}
+            for e in applied:
+                if e.target != "minutes":
+                    rate_scales[e.target] = rate_scales.get(e.target, 1.0) * e.shrunk_ratio
             if rate_scales:
                 scales["rate_scales"] = rate_scales
             for e in applied:
@@ -145,7 +163,8 @@ class ValueEngine:
                     scales["minutes_scale"] = e.shrunk_ratio
             fit = fit_arrays(inp, cfg, self.prior, use_bb=base_fit.use_bb, **scales)
             markets = self._markets(fit, inp, scales, seed, intervals)
-            flags.append("aggiustamento_contesto_applicato:back_to_back")
+            names = sorted({e.factor for e in applied})
+            flags.append("aggiustamento_contesto_applicato:" + "+".join(names))
         if context.opponent:
             flags.append("avversario_registrato_non_usato_nel_calcolo")
 

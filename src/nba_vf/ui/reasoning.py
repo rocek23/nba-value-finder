@@ -71,7 +71,9 @@ def missing_data(pred: PlayerPrediction | None, *, n_logs: int, skipped_reason: 
             items.append(("warn", "Prior di popolazione non disponibile (pochi giocatori caricati): shrinkage solo verso il giocatore stesso."))
         if market is Market.THREES and not pred.fit.three_ok:
             items.append(("missing", "Triple non prezzabili: tentativi da tre insufficienti."))
-        if pred.adjustments:
+        if any(e.factor == "casa_trasferta" for e in pred.adjustments):
+            items.append(("ok", "Aggiustamento casa/trasferta applicato: verificato fuori campione su tutti i giocatori caricati."))
+        if any(e.factor == "back_to_back" for e in pred.adjustments):
             items.append(("ok", "Aggiustamento back-to-back applicato: verificato sullo storico del giocatore."))
         elif pred.context.back_to_back:
             items.append(("warn", "Partita in back-to-back, ma l'effetto non è dimostrabile dallo storico: nessun aggiustamento."))

@@ -97,6 +97,7 @@ def rows_view(bundle: DataBundle, board: Board) -> pd.DataFrame:
 def _detail_prediction(fingerprint: str, key: str, ci_level: float, minutes_override: float | None, _bundle: DataBundle) -> PlayerPrediction:
     engine = ValueEngine(ModelConfig(n_boot=200, ci_level=ci_level))
     engine.fit_prior(_bundle.logs)
+    engine.fit_home_away(_bundle.logs)
     first = next((q for q in _bundle.quotes if normalize_name(q.player_name) == key), None)
     return engine.predict(usable_logs(_bundle, key, first), context_for(_bundle, key, first, minutes_override))
 

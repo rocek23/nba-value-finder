@@ -33,6 +33,7 @@ EMPTY_LIVE_MESSAGE = (
     "mancanti con dati inventati: per vedere un esempio passa alla modalità Demo."
 )
 LOGS_MAX_AGE = timedelta(hours=12)
+MAX_BDL_GAMES_PER_DAY = 30  # protezione: una giornata NBA ha al massimo ~15 partite; BALLDONTLIE GOAT non consuma crediti per partita
 MAX_PLAYERS_HARD_CAP = 400  # protezione: oltre questo numero il tempo di recupero non e' piu' ragionevole
 
 
@@ -95,6 +96,9 @@ class LiveCollector:
                 try:
                     evs = [e for e in self.odds.list_events() if self._within(e.get("commence_time"), now, opts.days_ahead)]
                     n_q, remaining, skipped_markets = 0, None, set()
+                    if len(evs) > opts.max_events:
+                        snap.messages.append(["warning", f"The Odds API: lette le quote di {opts.max_events} partite su {len(evs)} (limite per risparmiare crediti). "
+                                                         "Aumenta «Partite massime» in «Impostazioni e API» per leggerle tutte."])
                     for i, ev in enumerate(evs[: opts.max_events]):
                         self.progress(0.05 + 0.2 * i / max(1, len(evs)), f"The Odds API: props {ev.get('home_team')}")
                         res = self.odds.get_event_props(str(ev["id"]))
@@ -119,7 +123,7 @@ class LiveCollector:
                 n_q, status, detail = 0, "ok", ""
                 try:
                     for d in range(opts.days_ahead + 1):
-                        for g in self.bdl.get_games(now.date() + timedelta(days=d))[: opts.max_events]:
+                        for g in self.bdl.get_games(now.date() + timedelta(days=d))[:MAX_BDL_GAMES_PER_DAY]:
                             res = self.bdl.get_player_props(int(g["id"]))
                             home = (g.get("home_team") or {}).get("abbreviation")
                             away = (g.get("visitor_team") or {}).get("abbreviation")

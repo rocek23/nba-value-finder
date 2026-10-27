@@ -72,7 +72,8 @@ def render() -> None:
         else:
             c1, c2, c3 = st.columns(3)
             days = c1.number_input("Giorni in avanti", 0, 7, 1, key="lv_days")
-            events = c2.number_input("Partite al massimo", 1, 15, 8, key="lv_events")
+            events = c2.number_input("Partite al massimo (The Odds API)", 1, 15, 8, key="lv_events",
+                                     help="Limita le partite lette da The Odds API per risparmiare crediti. BALLDONTLIE legge tutte le partite del giorno.")
             players = c3.number_input("Giocatori con storico (0 = tutti)", 0, 400, 0, key="lv_players",
                                       help="Di default si scarica lo storico di tutti i giocatori che compaiono nelle quote (stagione in corso e precedente).")
             u1, u2 = st.columns(2)

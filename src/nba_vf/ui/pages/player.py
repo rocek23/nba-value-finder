@@ -41,6 +41,10 @@ def render() -> None:
         st.warning("Nessun giocatore disponibile: carica prima i dati (modalità live) o passa alla demo.")
         st.stop()
     n = st.session_state.get("ap_nonce", 0)
+    n_quoted = len(rows["key"].unique()) if len(rows) else 0
+    n_games = len(rows.drop_duplicates(["gday", "evento"])) if len(rows) else 0
+    st.caption(f"{len(keys)} giocatori in elenco: {n_quoted} hanno quote in {n_games} partite dell'ultimo aggiornamento, gli altri hanno solo lo storico. "
+               "I bookmaker pubblicano le props poche ore prima della partita: le gare più lontane possono non averne ancora.")
     s_key, s_market, s_line, s_side = _selection(rows, b)
     names = {b.player_name(k): k for k in keys}
     name_list = list(names)

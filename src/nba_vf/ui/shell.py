@@ -66,8 +66,8 @@ def begin(title: str, subtitle: str | None = None, *, show_title: bool = True) -
         st.markdown('<div class="nvf-demo">🧪 <b>MODALITÀ DEMO</b> — tutti i dati sono <b>sintetici</b> e inventati; '
                     'nessun valore corrisponde alla NBA reale.</div>', unsafe_allow_html=True)
     else:
-        st.markdown('<div class="nvf-live">● <b>MODALITÀ LIVE</b> — dati provenienti dalle API configurate; '
-                    'i dati mancanti restano mancanti (nessun dato inventato).</div>', unsafe_allow_html=True)
+        st.markdown('<div class="nvf-live" title="Dati provenienti dalle API configurate; i dati mancanti restano mancanti (nessun dato inventato).">'
+                    '● <b>MODALITÀ LIVE</b> · dati reali dalle API</div>', unsafe_allow_html=True)
     if show_title:
         st.title(title)
         if subtitle:

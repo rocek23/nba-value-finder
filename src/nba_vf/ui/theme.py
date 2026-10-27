@@ -23,7 +23,7 @@ COLORWAY = [ACCENT, CYAN, GREEN, AMBER, PURPLE, RED]
 
 CSS = f"""
 <style>
-.block-container {{ padding-top: 1.4rem; padding-bottom: 3rem; max-width: 1500px; }}
+.block-container {{ padding-top: 4rem; padding-bottom: 3rem; max-width: 1500px; }}
 h1, h2, h3 {{ letter-spacing: -0.01em; }}
 h1 {{ font-size: 1.7rem !important; }}
 [data-testid="stSidebar"] {{ background: {SURFACE}; border-right: 1px solid {BORDER}; }}
@@ -35,8 +35,8 @@ h1 {{ font-size: 1.7rem !important; }}
   border: 1px solid {BORDER}; background: {SURFACE2}; margin-right: 6px; }}
 .nvf-demo {{ background: rgba(245,185,66,.12); border: 1px solid {AMBER}; color: {AMBER}; border-radius: 10px;
   padding: 8px 14px; font-size: .86rem; margin-bottom: 14px; }}
-.nvf-live {{ background: rgba(46,204,113,.10); border: 1px solid {GREEN}; color: {GREEN}; border-radius: 10px;
-  padding: 8px 14px; font-size: .86rem; margin-bottom: 14px; }}
+.nvf-live {{ display: inline-block; background: rgba(46,204,113,.10); border: 1px solid {GREEN}55; color: {GREEN}; border-radius: 999px;
+  padding: 3px 12px; font-size: .78rem; margin: 0 0 10px; line-height: 1.4; }}
 .nvf-note {{ color: {MUTED}; font-size: .8rem; }}
 .nvf-reason {{ background: {SURFACE}; border: 1px solid {BORDER}; border-left: 3px solid {ACCENT}; border-radius: 8px;
   padding: 12px 16px; font-size: .92rem; line-height: 1.55; }}

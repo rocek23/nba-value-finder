@@ -6,6 +6,7 @@ import streamlit as st
 
 from ..models import utc_now
 from . import theme as T
+from . import tracker
 from .labels import fmt_age, fmt_dt
 from .live import CollectOptions, refresh_live
 from .session import MODES, Ctx, get_board, get_bundle, init_state, rows_view, settings_or_none
@@ -76,7 +77,17 @@ def begin(title: str, subtitle: str | None = None) -> Ctx:
         import pandas as pd
 
         rows = pd.DataFrame()
+    _track(bundle, rows)
     return Ctx(bundle, board, rows)
+
+
+def _track(bundle, rows) -> None:
+    """Salva nel registro le giocate con valore viste in Live (una sola volta per aggiornamento dei dati). Mai in Demo."""
+    if bundle.is_demo or rows is None or rows.empty or st.session_state.get("_tracked_fp") == bundle.fingerprint:
+        return
+    st.session_state["_tracked_fp"] = bundle.fingerprint
+    if tracker.record_picks(rows, bundle, utc_now()):
+        st.cache_data.clear()
 
 
 def need_quotes(ctx: Ctx) -> None:

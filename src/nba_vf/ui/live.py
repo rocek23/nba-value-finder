@@ -24,6 +24,7 @@ from ..http import ApiError, TierError
 from ..models import OddsQuote, PlayerGameLog, parse_iso, utc_now
 from .bundle import DataBundle, EventInfo, PlayerInfo, ProviderStatus
 from .labels import normalize_name
+from . import tracker
 from .snapshot import Snapshot, append_history, load_snapshot, save_snapshot
 
 EMPTY_LIVE_MESSAGE = (
@@ -333,10 +334,26 @@ def load_live_bundle() -> DataBundle:
         return b
 
 
+def _settle(bdl, logs_by_key: dict[str, list[PlayerGameLog]], now: datetime | None = None) -> tracker.SettleReport | None:
+    """Chiude le giocate registrate la cui partita e' finita (prima dallo storico scaricato, poi con una richiesta per giocatore).
+    Un errore qui non deve mai far fallire l'aggiornamento dei dati."""
+    try:
+        def fetch(player_id: int, day: date) -> list[PlayerGameLog]:
+            return bdl.get_player_game_logs(player_id, current_season_start_year(day), start_date=day)
+
+        return tracker.settle_pending(tracker.load_picks(), tracker.load_results(), logs_by_key,
+                                      fetch if bdl is not None else None, now or utc_now())
+    except Exception:
+        return None
+
+
 def refresh_live(settings: Settings, opts: CollectOptions, progress=None) -> Snapshot:
     bdl, odds, nba = build_adapters(settings)
     try:
         snap = LiveCollector(bdl=bdl, odds=odds, nba=nba, secrets=settings.secrets(), progress=progress).collect(opts, load_snapshot())
+        if progress:
+            progress(1.0, "Chiusura delle giocate concluse")
+        _settle(bdl, snap.logs)
     finally:
         for a in (bdl, odds):
             if a is not None:
@@ -344,6 +361,18 @@ def refresh_live(settings: Settings, opts: CollectOptions, progress=None) -> Sna
     save_snapshot(snap)
     append_history(snap)
     return snap
+
+
+def settle_now(settings: Settings) -> tracker.SettleReport | None:
+    """Solo la chiusura dei risultati (poche richieste), senza riscaricare quote e storico."""
+    bdl, odds, _ = build_adapters(settings)
+    try:
+        snap = load_snapshot()
+        return _settle(bdl, snap.logs if snap else {})
+    finally:
+        for a in (bdl, odds):
+            if a is not None:
+                a.close()
 
 
 def add_manual_quotes(quotes: list[OddsQuote]) -> Snapshot:

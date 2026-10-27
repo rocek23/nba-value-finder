@@ -46,6 +46,7 @@ def build_picks(rows: pd.DataFrame, stake: float, *, include_low: bool = False, 
         "giocatore": d["giocatore"].values,
         "squadra": [team_label(x) for x in d["squadra"]],
         "partita": [_match(r) for r in d.itertuples()],
+        "inizio_ts": [pd.Timestamp(t) if t is not None and t == t else pd.NaT for t in d["inizio"]],
         "inizio": [to_local(t).strftime("%d/%m %H:%M") if t is not None and t == t else "—" for t in d["inizio"]],
         "giocata": [f"{m} {l} {x:g}" for m, l, x in zip(d["mercato"], d["lato"], d["linea"])],
         "bookmaker": d["bookmaker"].values, "quota": d["quota"].values,
@@ -75,3 +76,25 @@ def most_probable(picks: pd.DataFrame, n: int = 10) -> pd.DataFrame:
 def most_profitable(picks: pd.DataFrame, n: int = 10) -> pd.DataFrame:
     """Le giocate con il guadagno atteso piu' alto sullo stake scelto."""
     return picks.sort_values(["guadagno", "prob"], ascending=False).head(n).reset_index(drop=True)
+
+
+def by_game(picks: pd.DataFrame) -> pd.DataFrame:
+    """Riepilogo per partita: quante giocate con valore e quale e' la migliore."""
+    cols = ["partita", "inizio", "giocate", "alta", "migliore"]
+    if picks is None or picks.empty:
+        return pd.DataFrame(columns=cols)
+    out = []
+    for (match, start), g in picks.groupby(["partita", "inizio"], sort=False):
+        top = g.sort_values("guadagno", ascending=False).iloc[0]
+        out.append({"partita": match, "inizio": start, "giocate": len(g), "alta": int((g["affidabilita"] == HIGH).sum()),
+                    "migliore": f"{top['giocatore']} · {top['giocata']} @ {top['quota']:.2f}", "_t": g["inizio_ts"].min()})
+    res = pd.DataFrame(out, columns=cols + ["_t"])
+    return res.sort_values(["_t", "partita"], na_position="last").drop(columns="_t").reset_index(drop=True)
+
+
+def for_game(picks: pd.DataFrame, partita: str, inizio: str | None = None) -> pd.DataFrame:
+    """Le giocate di una sola partita, dalla piu' redditizia."""
+    d = picks[picks["partita"] == partita]
+    if inizio is not None:
+        d = d[d["inizio"] == inizio]
+    return d.sort_values(["guadagno", "prob"], ascending=False).reset_index(drop=True)

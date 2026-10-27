@@ -211,3 +211,20 @@ def fig_book_margin(df: pd.DataFrame) -> go.Figure:
                            text=[f"{100 * m:.1f}%" for m in d["margine_medio"]], textposition="outside", cliponaxis=False))
     fig.update_xaxes(title_text="Margine medio (overround) %")
     return style(fig, "Margine medio per bookmaker", max(240, 70 + 42 * len(d)))
+
+
+def fig_pick_calibration(tab: pd.DataFrame) -> go.Figure:
+    """Probabilita' prevista contro frequenza realizzata per le giocate consigliate gia' concluse (con intervallo al 90%)."""
+    fig = go.Figure()
+    fig.add_scatter(x=[0, 100], y=[0, 100], mode="lines", line=dict(color=T.GRAY, dash="dash"), name="Previsto = realizzato")
+    if len(tab):
+        fig.add_scatter(
+            x=tab["previsto"], y=tab["realizzato"], mode="markers+text", name="Giocate chiuse",
+            marker=dict(color=T.ACCENT, size=12), text=[f"n={n}" for n in tab["giocate"]], textposition="top center",
+            error_y=dict(type="data", symmetric=False, array=tab["a"] - tab["realizzato"], arrayminus=tab["realizzato"] - tab["da"],
+                         color=T.MUTED),
+            hovertemplate="previsto %{x:.0f}% · realizzato %{y:.0f}%<extra></extra>",
+        )
+    fig.update_xaxes(title_text="Probabilità prevista (%)", range=[0, 100])
+    fig.update_yaxes(title_text="Realizzata (%)", range=[0, 100])
+    return style(fig, "Previsto contro realizzato", 380)

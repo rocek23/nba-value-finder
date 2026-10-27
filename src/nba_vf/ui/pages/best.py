@@ -6,7 +6,7 @@ import streamlit as st
 
 from .. import shell
 from .. import theme as T
-from ..best import HIGH, LOW, MEDIUM, RELIABILITY_HELP, build_picks, most_probable, most_profitable
+from ..best import HIGH, LOW, MEDIUM, RELIABILITY_HELP, build_picks, by_game, for_game, most_probable, most_profitable
 from ..coverage import INSUFFICIENT, NONE, build_coverage
 from ..labels import fmt_age
 
@@ -86,7 +86,7 @@ def render() -> None:
         with col:
             _card(r, stake)
 
-    t1, t2 = st.tabs(["Più redditizie", "Più probabili"])
+    t1, t2, t3 = st.tabs(["Più redditizie", "Più probabili", "Per partita"])
     with t1:
         st.caption("Ordinate per guadagno atteso sullo stake scelto nella barra laterale.")
         d = most_profitable(picks, n_show)
@@ -95,6 +95,18 @@ def render() -> None:
         st.caption("Tra le giocate con valore positivo, quelle con la probabilità di riuscita più alta.")
         d2 = most_probable(picks, n_show)
         _table(d2, stake, "bp_t2")
+    with t3:
+        games = by_game(picks)
+        st.caption("Le giocate con valore raggruppate per partita, in ordine di inizio (ora di Roma).")
+        st.dataframe(games.rename(columns={"partita": "Partita", "inizio": "Inizio", "giocate": "Giocate con valore",
+                                           "alta": "Di cui affidabilità alta", "migliore": "La più redditizia"}),
+                     hide_index=True, width="stretch", height=min(360, 38 + 35 * len(games)))
+        labels = {f"{r.partita} · {r.inizio} ({r.giocate} giocate)": (r.partita, r.inizio) for r in games.itertuples()}
+        pick_game = st.selectbox("Scegli una partita", list(labels), key="bp_game")
+        match, start = labels[pick_game]
+        g = for_game(picks, match, start)
+        st.markdown(f"#### {match}")
+        _table(g, stake, "bp_t3")
 
     opts = {f"{r.giocatore} · {r.giocata} @ {r.quota:.2f} ({r.bookmaker})": (r.prop_id, r.lato) for r in most_profitable(picks, 60).itertuples()}
     sel = st.selectbox("Apri l'analisi dettagliata di una giocata", list(opts), key="bp_sel")

@@ -50,10 +50,11 @@ def pill(text: str, color: str = T.GREEN, title: str = "") -> str:
     return f'<span class="nvf-pill" style="color:{color};background:{color}22"{tip}>{escape(str(text))}</span>'
 
 
-def reliability_pill(level: str) -> str:
+def reliability_pill(level: str, long: bool = False) -> str:
     from .best import RELIABILITY_HELP
 
-    return pill(level, {"Alta": T.GREEN, "Media": T.AMBER}.get(level, T.GRAY), RELIABILITY_HELP.get(level, ""))
+    text = f"Affidabilità {level.lower()}" if long else level
+    return pill(text, {"Alta": T.GREEN, "Media": T.AMBER}.get(level, T.GRAY), RELIABILITY_HELP.get(level, ""))
 
 
 def icon(name: str) -> str:

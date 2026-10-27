@@ -55,7 +55,7 @@ def render() -> None:
     ]) + "</div>", unsafe_allow_html=True)
 
     picks = build_picks(rows, stake, include_low=True, fresh_only=True) if len(rows) else None
-    h1, h2 = st.columns([4, 1])
+    h1, h2 = st.columns([4, 1], vertical_alignment="bottom")
     h1.markdown("### Top 5 giocate con valore")
     h2.page_link(pages["migliori"], label="Vedi tutte", icon=":material/arrow_forward:")
     if picks is None or picks.empty:
@@ -66,10 +66,11 @@ def render() -> None:
         body = []
         for i, r in enumerate(top.itertuples(), 1):
             body.append([str(i), W.player_cell(r.giocatore), W.escape(r.partita), W.escape(r.giocata), W.escape(r.bookmaker),
-                         f"{r.quota:.2f}", f"{r.prob:.0f}%", W.pill(f"{100 * r.guadagno / stake:+.1f}%"), W.reliability_pill(r.affidabilita)])
+                         f"{r.quota:.2f}", f"{r.prob:.0f}%", W.pill(f"{100 * r.guadagno / stake:+.1f}%"), W.reliability_pill(r.affidabilita),
+                         f'<span class="nvf-muted">{W.escape(r.nota_dato)}</span>'])
         st.markdown('<div class="nvf-panel">' + W.table(
-            ["#", "Giocatore", "Partita", "Giocata", "Book", "Quota", "Prob. stimata", "Valore atteso", "Affidabilità"], body,
-            ["left", "left", "left", "left", "left", "right", "right", "right", "left"]) + "</div>", unsafe_allow_html=True)
+            ["#", "Giocatore", "Partita", "Giocata", "Book", "Quota", "Prob. stimata", "Valore atteso", "Affidabilità", "Dati"], body,
+            ["left", "left", "left", "left", "left", "right", "right", "right", "left", "left"]) + "</div>", unsafe_allow_html=True)
         st.caption("Probabilità e valore atteso sono stime del modello, non garanzie.")
     st.write("")
 

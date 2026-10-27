@@ -5,6 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from .. import shell
+from .. import widgets as W
 from .. import theme as T
 from ..best import HIGH, LOW, MEDIUM, RELIABILITY_HELP, build_picks, by_game, for_game, most_probable, most_profitable
 from ..coverage import INSUFFICIENT, NONE, build_coverage
@@ -13,14 +14,16 @@ from ..labels import fmt_age
 
 def _card(r, stake: float) -> None:
     with st.container(border=True):
-        st.markdown(f"**{r.giocatore}** · {r.squadra}")
+        left, right = st.columns([3, 2])
+        left.markdown(f"**{r.giocatore}** · {r.squadra}")
+        right.markdown(f'<div style="text-align:right">{W.reliability_pill(r.affidabilita, long=True)}</div>', unsafe_allow_html=True)
         st.caption(f"{r.partita} · {r.inizio}")
         st.markdown(f"### {r.giocata}")
         st.markdown(f"Quota **{r.quota:.2f}** su **{r.bookmaker}** · quota equa {r.quota_equa:.2f}")
         c1, c2 = st.columns(2)
         c1.metric("Probabilità", f"{r.prob:.0f}%", help="Probabilità di riuscita stimata dal modello. È una stima, non una certezza.")
         c2.metric("Guadagno atteso", f"{r.guadagno:+.2f} €", help=f"Media per ogni {stake:g} € puntati se la giocata fosse ripetuta molte volte, secondo il modello. Se vince: +{r.vincita:.2f} €.")
-        st.caption(f"Su {stake:g} € · affidabilità **{r.affidabilita}** · {int(r.partite)} partite usate")
+        st.caption(r.nota_dato)
 
 
 def _table(d, stake: float, key: str) -> None:
@@ -36,10 +39,10 @@ def _table(d, stake: float, key: str) -> None:
         "guadagno": st.column_config.NumberColumn(f"Guadagno atteso ({stake:g} €)", format="%+.2f €"),
         "vincita": st.column_config.NumberColumn(f"Se vince ({stake:g} €)", format="+%.2f €"),
         "affidabilita": st.column_config.TextColumn("Affidabilità"),
-        "partite": st.column_config.NumberColumn("Partite usate", format="%d"),
+        "nota_dato": st.column_config.TextColumn("Affidabilità del dato"),
     }
     show = d[["giocatore", "squadra", "partita", "giocata", "bookmaker", "quota", "prob", "quota_equa",
-              "guadagno", "vincita", "affidabilita", "partite"]].copy()
+              "guadagno", "vincita", "affidabilita", "nota_dato"]].copy()
     show["partita"] = d["partita"] + " · " + d["inizio"]
     st.dataframe(show, hide_index=True, width="stretch", column_config=cols, key=key, height=min(480, 38 + 35 * len(show)))
 

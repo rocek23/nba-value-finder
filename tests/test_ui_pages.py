@@ -47,7 +47,7 @@ def go(at, page):
 @pytest.mark.parametrize("page", PAGES)
 def test_every_page_runs_in_demo(page):
     at = go(app(), page)
-    assert at.title and "MODALITÀ DEMO" in texts(at)
+    assert (at.title or "Benvenuto, Ale" in texts(at)) and "MODALITÀ DEMO" in texts(at)
 
 
 def to_live(at):

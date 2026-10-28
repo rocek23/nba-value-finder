@@ -52,6 +52,8 @@ def _sidebar(bundle) -> None:
         st.markdown("**Parametri di visualizzazione**")
         st.number_input("Stake per l'EV (€)", min_value=1.0, max_value=100000.0, step=1.0, key="stake")
         st.number_input("Quota obsoleta dopo (min)", min_value=1.0, max_value=1440.0, step=5.0, key="max_age")
+        st.toggle("Mostra anche gli Under", key="show_under",
+                  help="Molti bookmaker italiani non offrono gli Under sui giocatori NBA. Spento: Migliori giocate e Top 5 mostrano solo Over.")
         st.divider()
         st.caption(DISCLAIMER)
 

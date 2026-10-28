@@ -54,6 +54,8 @@ def render() -> None:
     stake = float(st.session_state["stake"])
     st.markdown("<style>[data-testid='stMetricValue']{font-size:1.7rem}</style>", unsafe_allow_html=True)
 
+    if not st.session_state.get("show_under", False):
+        st.caption("Sono mostrate solo giocate **Over**. Per vedere anche gli Under attiva «Mostra anche gli Under» nella barra laterale.")
     c1, c2, c3 = st.columns([2, 1, 1])
     markets = c1.multiselect("Mercato", sorted(rows["mercato"].unique()), key="bp_mkt", placeholder="Tutti i mercati")
     fresh = c2.toggle("Solo quote aggiornate", value=True, key="bp_fresh",
@@ -61,7 +63,8 @@ def render() -> None:
     low = c3.toggle("Includi campione ridotto", value=False, key="bp_low", help="Giocatori con meno di 25 partite: stime più incerte.")
     n_show = st.slider("Quante giocate mostrare", 3, 30, 10, key="bp_n")
 
-    picks = build_picks(rows, stake, include_low=low, fresh_only=fresh, markets=markets or None)
+    under = bool(st.session_state.get("show_under", False))
+    picks = build_picks(rows, stake, include_low=low, fresh_only=fresh, markets=markets or None, include_under=under)
     cov = build_coverage(b, ctx.board)
     n_priced = cov.n_priced or 0
     T.kpi_row([
@@ -75,11 +78,12 @@ def render() -> None:
         if n_priced == 0:
             st.warning("Nessuna quota è stata valutata: i giocatori non hanno abbastanza partite di storico. Nessuna probabilità viene inventata. "
                        "Dettagli nella pagina «Copertura dati».")
-        elif fresh and len(build_picks(rows, stake, include_low=low, fresh_only=False, markets=markets or None)):
+        elif fresh and len(build_picks(rows, stake, include_low=low, fresh_only=False, markets=markets or None, include_under=under)):
             st.warning("Ci sono giocate con valore, ma le quote sono più vecchie del limite scelto. Premi «Aggiorna dati live» nella barra laterale "
                        "oppure disattiva «Solo quote aggiornate».")
         else:
-            st.info("In questo momento nessuna quota ha un valore atteso positivo con questi filtri. È un risultato normale: il mercato di solito è efficiente.")
+            st.info("In questo momento nessuna quota ha un valore atteso positivo con questi filtri. È un risultato normale: il mercato di solito è efficiente."
+                    + ("" if under else " Gli Under sono nascosti: puoi mostrarli con «Mostra anche gli Under» nella barra laterale."))
         st.page_link(st.session_state["_pages"]["copertura"], label="Copertura dati", icon=":material/fact_check:")
         return
 

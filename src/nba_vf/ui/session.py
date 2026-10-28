@@ -20,8 +20,8 @@ from .live import load_live_bundle
 from .snapshot import snapshot_path, sync_from_remote
 
 MODES = {"Demo (dati sintetici)": "demo", "Live (dati API)": "live"}
-DEFAULTS = {"mode_label": "Demo (dati sintetici)", "stake": 10.0, "max_age": 30.0, "n_boot": 40, "ci_level": 0.90}
-PERSIST = ("mode_label", "stake", "max_age", "n_boot", "ci_level")
+DEFAULTS = {"mode_label": "Demo (dati sintetici)", "stake": 10.0, "max_age": 30.0, "n_boot": 40, "ci_level": 0.90, "show_under": False}
+PERSIST = ("mode_label", "stake", "max_age", "n_boot", "ci_level", "show_under")
 
 
 def init_state() -> None:

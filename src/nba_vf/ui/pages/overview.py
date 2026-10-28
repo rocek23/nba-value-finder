@@ -54,7 +54,7 @@ def render() -> None:
         W.card_kpi("trending_up", f"{n_priced}", "Quote analizzate", f"su {len(rows):,}".replace(",", ".")),
     ]) + "</div>", unsafe_allow_html=True)
 
-    picks = build_picks(rows, stake, include_low=True, fresh_only=True) if len(rows) else None
+    picks = build_picks(rows, stake, include_low=True, fresh_only=True, include_under=bool(st.session_state.get("show_under", False))) if len(rows) else None
     h1, h2 = st.columns([4, 1], vertical_alignment="bottom")
     h1.markdown("### Top 5 giocate con valore")
     h2.page_link(pages["migliori"], label="Vedi tutte", icon=":material/arrow_forward:")

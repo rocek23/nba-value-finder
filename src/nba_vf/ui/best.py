@@ -45,11 +45,13 @@ def reliability(n_games: float, roi: float, roi_lo: float) -> str:
 
 
 def build_picks(rows: pd.DataFrame, stake: float, *, include_low: bool = False, fresh_only: bool = True,
-                markets: list[str] | None = None) -> pd.DataFrame:
+                markets: list[str] | None = None, include_under: bool = True) -> pd.DataFrame:
     """Una riga per giocata (prop + lato) con la migliore quota disponibile e solo valore atteso > 0."""
     if rows is None or rows.empty:
         return pd.DataFrame(columns=["key"] + PICK_COLUMNS + ["prop_id", "lato"])
     d = rows[rows["priced"] & (rows["roi"] > 0)]
+    if not include_under:
+        d = d[d["lato"] == "Over"]
     if markets:
         d = d[d["mercato"].isin(markets)]
     if d.empty:

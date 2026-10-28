@@ -139,3 +139,14 @@ def test_best_page_renders_real_names_cards_and_tables(monkeypatch):
     assert "Giocatore Demo" not in body
     assert "Giocatore Pieno" in body and "Affidabilità" in body
     assert len(at.dataframe) >= 2
+
+
+def test_under_picks_can_be_hidden():
+    rows, _ = rows_for()
+    rows = rows.copy()
+    rows["quota"] = rows["quota"] * 2.5
+    rows["roi"] = rows["p_win"] * rows["quota"] + rows["p_push"] - 1
+    both = build_picks(rows, 10.0, include_low=True, fresh_only=False)
+    over = build_picks(rows, 10.0, include_low=True, fresh_only=False, include_under=False)
+    assert set(both["lato"]) == {"Over", "Under"} and set(over["lato"]) == {"Over"}
+    assert len(over) < len(both)

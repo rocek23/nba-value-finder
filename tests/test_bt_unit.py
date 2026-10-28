@@ -295,3 +295,23 @@ def test_verdict_negative_and_small_sample_wording():
     assert _verdict(test_bets={**_ok_tb(), "yield": -0.08, "yield_lo": -0.15, "yield_hi": -0.01})["code"] == "fallita"
     assert _verdict(test_bets=_ok_tb(n_scommesse=40))["code"] == "campione_insufficiente"
     assert _verdict(test_bets={**_ok_tb(), "yield": 0.05, "yield_lo": -0.02})["code"] == "non_dimostrato"
+
+
+def test_paired_vs_baselines_survives_empty_frame_concat():
+    """Regressione: in Live una parte vuota rendeva 'object' le colonne e np.log falliva."""
+    import numpy as np, pandas as pd
+    from nba_vf.backtest import evaluate as ev
+    from nba_vf.backtest.report import paired_vs_baselines
+    rng = np.random.default_rng(0)
+    rows = []
+    for i in range(80):
+        y = float(rng.random() < 0.5)
+        for m, p in (("modello", 0.55), ("frequenza_ultime20", 0.5)):
+            rows.append({c: "x" for c in ev.ROW_COLUMNS} | {
+                "model": m, "phase": "test", "line_source": "quota_reale", "side": "over", "line": 20.5, "p_win": p, "p_push": 0.0,
+                "p_loss": 1 - p, "y": y, "result": "win" if y else "loss", "obs_id": f"o{i}", "date": f"2025-01-{i % 28 + 1:02d}"})
+    frame = pd.concat([ev.to_frame(rows), ev.to_frame([])], ignore_index=True)
+    out = paired_vs_baselines(ev.coerce_numeric(frame), "test", "quota_reale", "modello", ["frequenza_ultime20"], B=50)
+    assert len(out) == 1 and np.isfinite(out["delta_log_loss"].iloc[0])
+    out2 = paired_vs_baselines(frame, "test", "quota_reale", "modello", ["frequenza_ultime20"], B=50)  # anche senza coerce a monte
+    assert len(out2) == 1

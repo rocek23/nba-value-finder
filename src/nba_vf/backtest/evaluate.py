@@ -139,9 +139,20 @@ def quote_rows(
     return rows, rej
 
 
-def to_frame(rows: list[dict]) -> pd.DataFrame:
-    df = pd.DataFrame(rows, columns=ROW_COLUMNS)
+NUMERIC_COLUMNS = ["line", "odds", "minutes_before_start", "p_win", "p_push", "p_loss", "y"]
+
+
+def coerce_numeric(df: pd.DataFrame) -> pd.DataFrame:
+    """Colonne numeriche sempre float (un DataFrame vuoto le rende 'object' e rompe np.log dopo la concatenazione)."""
+    df = df.copy()
+    for c in NUMERIC_COLUMNS:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce").astype(float)
     return df
+
+
+def to_frame(rows: list[dict]) -> pd.DataFrame:
+    return coerce_numeric(pd.DataFrame(rows, columns=ROW_COLUMNS))
 
 
 # --------------------------------------------------------------------------------------------------

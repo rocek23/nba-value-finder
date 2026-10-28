@@ -17,6 +17,7 @@ MIN_GROUP_N = 30  # sotto questa numerosita' non si mostrano intervalli per i so
 def binary_view(evals: pd.DataFrame, phase: str, source: str, models: Sequence[str] | None = None, common: bool = True) -> pd.DataFrame:
     """Righe binarie (mezze linee, lato Over) con p_over e esito_over. Se ``common`` tiene solo le osservazioni presenti in tutti i modelli."""
     d = evals[(evals["phase"] == phase) & (evals["line_source"] == source) & (evals["side"] == "over")]
+    d = d.assign(p_push=pd.to_numeric(d["p_push"], errors="coerce"), line=pd.to_numeric(d["line"], errors="coerce"))
     d = d[(d["p_push"] == 0) & ((d["line"] % 1).abs() > 1e-9)]
     if models is not None:
         d = d[d["model"].isin(models)]
@@ -26,7 +27,7 @@ def binary_view(evals: pd.DataFrame, phase: str, source: str, models: Sequence[s
         present = d.groupby("obs_id")["model"].nunique()
         k = d["model"].nunique()
         d = d[d["obs_id"].isin(present[present == k].index)]
-    return d.assign(p=d["p_win"], yb=(d["result"] == "win").astype(float))
+    return d.assign(p=pd.to_numeric(d["p_win"], errors="coerce").astype(float), yb=(d["result"] == "win").astype(float))
 
 
 def _ci(values, clusters, level, B, seed) -> Estimate:

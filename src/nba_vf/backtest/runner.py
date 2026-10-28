@@ -197,6 +197,7 @@ def run_backtest(
     quote_info["scartate"].update({k: quote_info["scartate"].get(k, 0) + v for k, v in {**rej_q_val, **rej_q_test}.items() if k == "linea_fuori_griglia"})
     # le righe di validazione del modello scelto sono rinominate come nel test per un registro unico
     evals = pd.concat([val_syn, ev.to_frame(test_syn + test_q), ev.to_frame(val_q_rows)], ignore_index=True)
+    evals = ev.coerce_numeric(evals)
 
     say(0.8, "Scommesse simulate e metriche")
     bets = pd.concat([all_bets(evals, "modello", thr, cfg.stake, TEST), all_bets(val_frame, "modello", thr, cfg.stake, VALIDATION, with_baselines=True)], ignore_index=True)

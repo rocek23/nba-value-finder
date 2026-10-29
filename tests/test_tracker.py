@@ -335,3 +335,17 @@ def test_live_page_records_picks_and_registry_page_shows_them():
     shown = "\n".join(m.value for m in at.markdown)
     assert any("Troppo presto" in i.value for i in at.info) or "Troppo presto" in shown
     assert at.dataframe  # il registro e' visibile
+
+
+def test_export_csv_contains_all_rows_and_numeric_columns():
+    import io
+    import pandas as pd
+    from nba_vf.ui import tracker as K2
+    now = datetime(2026, 10, 26, 18, 0, tzinfo=timezone.utc)
+    rec = {"id": "x1", "logged_at": now.isoformat(), "gday": "2026-10-26", "key": "a b", "giocatore": "A B", "squadra": "AAA", "evento": "BBB @ AAA",
+           "inizio": (now + timedelta(hours=5)).isoformat(), "market": "points", "mercato": "Punti", "linea": 20.5, "side": "over", "lato": "Over",
+           "bookmaker": "Book", "quota": 1.9, "p_win": .6, "p_push": 0.0, "roi": .14, "roi_lo": .02, "n_partite": 40, "affidabilita": "Alta",
+           "player_id": 1, "fonte": "t"}
+    df = K2.track_frame([rec], {}, None, now=now)
+    back = pd.read_csv(io.BytesIO(K2.export_csv(df)))
+    assert len(back) == 1 and back["quota"].iloc[0] == 1.9 and back["p_win"].iloc[0] == .6 and back["id"].iloc[0] == "x1"

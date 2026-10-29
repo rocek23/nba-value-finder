@@ -277,6 +277,15 @@ def track_frame(records: list[dict], results: dict[str, dict], logs_by_key: dict
     return df.sort_values("registrata", ascending=False).reset_index(drop=True)
 
 
+def export_csv(df: pd.DataFrame) -> bytes:
+    """Registro completo in CSV (date in formato leggibile, probabilita' e quote come numeri) per analisi esterne."""
+    out = df.copy()
+    for c in ("registrata", "inizio"):
+        if c in out.columns:
+            out[c] = [x.isoformat() if hasattr(x, "isoformat") else "" for x in out[c]]
+    return out.to_csv(index=False).encode("utf-8")
+
+
 def settled(df: pd.DataFrame) -> pd.DataFrame:
     return df[df["outcome"].notna()] if len(df) else df
 

@@ -54,6 +54,8 @@ def render() -> None:
                 "compaiono qui da sole. Dopo la partita premi «Aggiorna risultati».")
         return
 
+    st.download_button("Scarica il registro (CSV)", K.export_csv(df), file_name="registro_giocate.csv", mime="text/csv", key="trk_csv",
+                       help="Tutte le giocate registrate con quota, probabilità del modello ed esito: utile per analizzare dove il modello sbaglia.")
     sm = K.summarize(df)
     hit = f"{100 * sm.wins / sm.n_settled:.0f}%" if sm.n_settled else "—"
     exp_hit = f"{100 * sm.expected_wins / sm.n_settled:.0f}%" if sm.n_settled else "—"

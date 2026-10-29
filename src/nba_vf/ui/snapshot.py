@@ -40,6 +40,7 @@ class Snapshot:
     logs_fetched_at: dict[str, datetime] = field(default_factory=dict)
     logs_seasons: dict[str, list[int]] = field(default_factory=dict)  # stagioni effettivamente richieste per ogni giocatore
     retrieval: dict[str, Any] = field(default_factory=dict)  # stato del recupero dello storico (vedi LiveCollector)
+    injuries: dict[str, dict[str, Any]] | None = None  # chiave giocatore -> {status, description, return_date}; None = elenco non scaricato
 
 
 def _dt(value: datetime | None) -> str | None:
@@ -99,6 +100,7 @@ def save_snapshot(snap: Snapshot, path: Path | None = None) -> Path:
         "logs_fetched_at": {k: _dt(v) for k, v in snap.logs_fetched_at.items()},
         "logs_seasons": snap.logs_seasons,
         "retrieval": snap.retrieval,
+        "injuries": snap.injuries,
     }
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
@@ -148,6 +150,7 @@ def load_snapshot(path: Path | None = None) -> Snapshot | None:
         logs_fetched_at={k: _parse_dt(v) for k, v in body.get("logs_fetched_at", {}).items()},
         logs_seasons={k: [int(x) for x in v] for k, v in body.get("logs_seasons", {}).items()},
         retrieval=body.get("retrieval", {}),
+        injuries=body.get("injuries"),
     )
 
 

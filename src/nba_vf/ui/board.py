@@ -18,6 +18,7 @@ from ..model.engine import GameContext, PlayerPrediction, ValueEngine
 from ..model.errors import InsufficientDataError, InvalidLineError, ModelError
 from ..models import Market, Side, utc_now
 from .bundle import DataBundle
+from .injuries import injury_status
 from .labels import MARKET_IT, SIDE_IT, book_label, fmt_age, normalize_name
 
 NY = ZoneInfo("America/New_York")
@@ -125,6 +126,7 @@ def build_board(bundle: DataBundle, params: BoardParams = BoardParams()) -> Boar
         title = f"{q.away_team or (ev.away if ev else '?')} @ {q.home_team or (ev.home if ev else '?')}"
         row = {
             "prop_id": prop_id(day, key, q.market, q.line), "gday": day, "key": key, "evento": title,
+            "infortunio": injury_status(bundle, key),
             "giocatore": bundle.player_name(key), "squadra": info.team if info else None,
             "market": q.market, "mercato": MARKET_IT[q.market], "linea": q.line, "side": q.side, "lato": SIDE_IT[q.side],
             "book": q.bookmaker, "bookmaker": book_label(q.bookmaker), "quota": q.odds_decimal,

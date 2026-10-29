@@ -54,6 +54,7 @@ class DataBundle:
     collection_issues: dict[str, list[str]] = field(default_factory=dict)  # chiave giocatore -> problemi nella raccolta
     fingerprint: str = ""
     retrieval: dict = field(default_factory=dict)  # stato del recupero dello storico (solo live)
+    injuries: dict | None = None  # elenco infortuni BALLDONTLIE; None = non scaricato (non significa "nessun infortunio")
 
     @property
     def is_demo(self) -> bool:

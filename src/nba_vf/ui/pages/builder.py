@@ -79,7 +79,12 @@ def _details(ctx, leg: B.Leg) -> None:
     else:
         st.markdown(f"**Contro {vs['avversario']}:** {vs['n']} partite, media {vs['media']:.1f}, giocata riuscita {100 * vs['riuscita']:.0f}% "
                     "(campione piccolo; **non** usato nel calcolo del modello).")
-    st.markdown("**Assenze rilevanti:** non disponibili (le informazioni sugli infortuni non sono ancora collegate). Controllale prima di giocare.")
+    if leg.infortunio:
+        st.markdown(f"**Assenze:** ⚠ segnalato «{leg.infortunio}» nell'elenco infortuni. Il modello **non** ne tiene conto: controlla prima di giocare.")
+    elif ctx.bundle.injuries is None:
+        st.markdown("**Assenze:** elenco infortuni non scaricato (premi «Aggiorna dati live»). Controllale prima di giocare.")
+    else:
+        st.markdown("**Assenze:** nessuna segnalazione per questo giocatore nell'elenco infortuni BALLDONTLIE. Controlla comunque prima di giocare.")
 
 
 def _proposal(ctx, p: B.Proposal, stake: float, idx: int) -> None:
@@ -104,6 +109,9 @@ def _proposal(ctx, p: B.Proposal, stake: float, idx: int) -> None:
             st.warning(f"Le quote vengono da bookmaker diversi ({', '.join(p.books)}): la multipla potrebbe **non essere disponibile** presso un solo operatore.")
         else:
             st.caption(f"Tutte le quote sono di {p.book}.")
+        flagged = [l for l in p.legs if l.infortunio]
+        if flagged:
+            st.warning("Possibile assenza: " + ", ".join(f"{l.giocatore} ({l.infortunio})" for l in flagged) + ". Il modello non ne tiene conto.")
         if p.has_push_risk:
             st.caption("Una o più linee sono intere: in caso di rimborso la selezione esce dalla multipla e la quota totale scende.")
         if p.target >= B.HIGH_TARGET:

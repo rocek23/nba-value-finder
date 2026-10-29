@@ -9,6 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from .injuries import OUT, injury_level
 from .labels import fmt_age, game_title, team_label, to_local
 from .tables import best_per_prop
 
@@ -50,6 +51,8 @@ def build_picks(rows: pd.DataFrame, stake: float, *, include_low: bool = False, 
     if rows is None or rows.empty:
         return pd.DataFrame(columns=["key"] + PICK_COLUMNS + ["prop_id", "lato"])
     d = rows[rows["priced"] & (rows["roi"] > 0)]
+    if "infortunio" in d.columns:  # un giocatore segnalato «Out» non gioca: la giocata non ha una probabilita' sensata
+        d = d[[injury_level(s) != OUT for s in d["infortunio"].fillna("")]]
     if not include_under:
         d = d[d["lato"] == "Over"]
     if markets:
@@ -72,7 +75,8 @@ def build_picks(rows: pd.DataFrame, stake: float, *, include_low: bool = False, 
         "guadagno": stake * d["roi"].values, "vincita": stake * (d["quota"].values - 1),
         "affidabilita": [reliability(n, r, lo) for n, r, lo in zip(d["n_partite"], d["roi"], d["roi_lo"])],
         "partite": d["n_partite"].values, "eta_min": d["eta_min"].values,
-        "nota_dato": [data_note(n, e, bool(k)) for n, e, k in zip(d["n_partite"], d["eta_min"], d["ts_nota"])],
+        "nota_dato": [data_note(n, e, bool(k)) + (f" · ⚠ segnalato «{inj}» (infortuni)" if injury_level(inj) != "" else "")
+                      for n, e, k, inj in zip(d["n_partite"], d["eta_min"], d["ts_nota"], (d["infortunio"] if "infortunio" in d.columns else [""] * len(d)))],
     })
     if not include_low:
         out = out[out["affidabilita"] != LOW]

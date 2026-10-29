@@ -20,6 +20,8 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 
+from .injuries import OUT, injury_level
+
 TARGETS = (2, 5, 10, 25, 50, 100)
 MIN_GAMES = 25            # sotto questo storico una stima non e' considerata abbastanza solida
 STEP = 0.005              # risoluzione (in logaritmo della quota) della ricerca
@@ -50,6 +52,7 @@ class Leg:
     eta_min: float
     quote_known: bool
     prop_id: str
+    infortunio: str = ""     # stato segnalato nell'elenco infortuni (solo informativo)
 
     @property
     def descr(self) -> str:
@@ -150,6 +153,9 @@ def eligible_legs(rows: pd.DataFrame, now: datetime, *, markets: Sequence[str] |
     funnel.append((f"Storico di almeno {min_games} partite", len(d)))
     d = d[d["p_win_lo"].notna() & d["p_win_hi"].notna() & (d["p_win"] > 0) & (d["quota"] > 1)]
     funnel.append(("Con intervallo di incertezza", len(d)))
+    if "infortunio" in d.columns:
+        d = d[[injury_level(s) != OUT for s in d["infortunio"].fillna("")]]
+    funnel.append(("Giocatore non segnalato «Out»", len(d)))
     if not include_under:
         d = d[d["lato"] == "Over"]
     funnel.append(("Lato ammesso (Over" + (" e Under)" if include_under else ")"), len(d)))
@@ -169,7 +175,8 @@ def eligible_legs(rows: pd.DataFrame, now: datetime, *, markets: Sequence[str] |
             inizio=pd.Timestamp(r.inizio), market=r.market, mercato=r.mercato, linea=float(r.linea), lato=r.lato, book=r.bookmaker,
             odds=float(r.quota), p_win=float(r.p_win), p_push=float(r.p_push) if r.p_push == r.p_push else 0.0, p_lo=lo, p_hi=hi,
             n_games=int(r.n_partite), eta_min=float(r.eta_min) if r.eta_min == r.eta_min else float("nan"),
-            quote_known=bool(r.ts_nota), prop_id=r.prop_id))
+            quote_known=bool(r.ts_nota), prop_id=r.prop_id,
+            infortunio=(getattr(r, "infortunio", "") if isinstance(getattr(r, "infortunio", ""), str) else "")))
     return legs, funnel
 
 

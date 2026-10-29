@@ -279,6 +279,18 @@ class LiveCollector:
         snap.logs = {k: v for k, v in snap.logs.items() if v}
         snap.players = {k: {"name": names_by_key[k], "team": (snap.logs[k][-1].team if k in snap.logs else None)} for k in targets}
         snap.events = events
+        # ---- BALLDONTLIE: infortuni (ALL-STAR o superiore). Solo informativo: non entra nelle probabilita' del modello ----
+        if self.bdl is not None:
+            try:
+                inj: dict[str, dict[str, Any]] = {}
+                for r in self.bdl.get_injuries():
+                    k = normalize_name(r.get("player_name"))
+                    if k:
+                        inj[k] = {"status": r.get("status") or "", "description": r.get("description") or "", "return_date": r.get("return_date")}
+                snap.injuries = inj
+                providers.append(_prov("Infortuni", "ok", f"BALLDONTLIE: {len(inj)} giocatori nell'elenco infortuni"))
+            except Exception as exc:  # non deve mai bloccare l'aggiornamento: senza elenco gli avvisi non compaiono
+                providers.append(_prov("Infortuni", "errore", self._err(exc) if isinstance(exc, ApiError) else f"{type(exc).__name__}"))
         snap.providers = providers
         snap.retrieval = {
             "seasons": seasons, "players_in_quotes": len(ranked), "players_requested": len(targets), "with_logs": len(snap.logs),
@@ -324,7 +336,7 @@ def bundle_from_snapshot(snap: Snapshot | None) -> DataBundle:
     return DataBundle(
         mode="live", source_label="Dati LIVE (API)", status=status, updated_at=snap.fetched_at, quotes=snap.quotes,
         logs=snap.logs, players=players, events=events, providers=providers, messages=messages,
-        collection_issues=snap.issues, retrieval=snap.retrieval,
+        collection_issues=snap.issues, retrieval=snap.retrieval, injuries=snap.injuries,
         fingerprint=f"live:{snap.fetched_at.isoformat()}:{len(snap.quotes)}:{sum(len(v) for v in snap.logs.values())}",
     )
 

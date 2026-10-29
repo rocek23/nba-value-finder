@@ -256,7 +256,8 @@ def _choose(cands: list[list[Leg]], key) -> list[Leg] | None:
 
 
 def search(legs: Sequence[Leg], target: float, *, tolerance: float = 0.15, min_sel: int = 2, max_sel: int = 8,
-           mixed_books: bool = False, require_prudent: bool = False, books_filter: Sequence[str] | None = None) -> BuildResult:
+           mixed_books: bool = False, require_prudent: bool = False, books_filter: Sequence[str] | None = None,
+           min_ev: float = 0.0) -> BuildResult:
     """Cerca le combinazioni complete e restituisce fino a tre proposte (migliore EV, piu' probabile, meno selezioni)."""
     res = BuildResult()
     lo, hi = target * (1 - tolerance), target * (1 + tolerance)
@@ -278,7 +279,7 @@ def search(legs: Sequence[Leg], target: float, *, tolerance: float = 0.15, min_s
             res.n_window += 1
             ev = combo_ev(combo)
             res.best_ev_seen = ev if res.best_ev_seen is None else max(res.best_ev_seen, ev)
-            if ev > 0 and (not require_prudent or combo_ev(combo, prudent=True) > 0):
+            if ev > min_ev and (not require_prudent or combo_ev(combo, prudent=True) > 0):
                 admissible.append((combo, name, mixed))
     if not admissible:
         res.reasons = _diagnose(res, runs, target, lo, hi, min_sel, max_sel, mixed_books, require_prudent)

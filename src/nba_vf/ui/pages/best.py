@@ -8,7 +8,8 @@ import streamlit as st
 from .. import shell
 from .. import widgets as W
 from .. import theme as T
-from ..daily import daily_picks
+from .. import builder as B
+from ..daily import market_legs
 from ..best import HIGH, LOW, MEDIUM, RELIABILITY_HELP, build_picks, by_game, for_game, most_probable, most_profitable
 from ..coverage import INSUFFICIENT, NONE, build_coverage
 from ..labels import fmt_age
@@ -49,30 +50,35 @@ def _table(d, stake: float, key: str) -> None:
     st.dataframe(show, hide_index=True, width="stretch", column_config=cols, key=key, height=min(480, 38 + 35 * len(show)))
 
 
-def _daily(ctx) -> None:
+MIN_PRICE_EDGE = -0.06  # sotto questo prezzo (piu' di 6% peggio della quota equa) la multipla non viene proposta
+
+
+def _doubles(ctx) -> None:
+    """2-3 multiple vicino a quota 2 fatte con quote basse. Probabilita' del MERCATO (media degli altri bookmaker), non del modello."""
     from ...models import utc_now
     from ..labels import to_local
-    from ..best import quote_age_text
-    st.subheader("Giocata del giorno")
-    picks = daily_picks(ctx.rows, utc_now(), include_under=bool(st.session_state.get("show_under", False)))
-    if picks.empty:
-        st.info("Oggi nessuna quota tra 1,80 e 2,20 ha un prezzo migliore degli altri bookmaker in modo credibile. "
-                "Meglio nessuna giocata che una forzata.")
-    for r in picks.itertuples():
+    st.subheader("Multiple vicino a quota 2")
+    legs = market_legs(ctx.rows, utc_now(), include_under=bool(st.session_state.get("show_under", False)))
+    res = B.search(legs, 2.0, tolerance=0.10, min_sel=2, max_sel=3, min_ev=MIN_PRICE_EDGE)
+    if not res.proposals:
+        st.info("Oggi non ci sono abbastanza selezioni a quota bassa, con un confronto credibile tra bookmaker e un prezzo ragionevole "
+                "(non più del 6% peggiore della quota equa), per comporre una multipla vicino a 2. Meglio nessuna multipla che una forzata.")
+    for p in res.proposals:
         with st.container(border=True):
-            l, rt = st.columns([3, 2])
-            l.markdown(f"**{r.giocatore}** · {r.squadra}")
-            rt.markdown(f'<div style="text-align:right;opacity:.7">{r.partita} · {to_local(pd.Timestamp(r.inizio).to_pydatetime()).strftime("%d/%m %H:%M")}</div>', unsafe_allow_html=True)
-            st.markdown(f"### {r.giocata}")
+            st.markdown("".join(f'<span style="display:inline-block;padding:.12rem .6rem;border-radius:999px;background:#1b2540;border:1px solid #2b3655;'
+                                f'font-size:.78rem;margin-right:.35rem">{l}</span>' for l in p.labels), unsafe_allow_html=True)
             c = st.columns(4)
-            c[0].metric("Quota", f"{r.quota:.2f}", help=f"su {r.bookmaker}")
-            c[1].metric("Probabilità stimata", f"{100 * r.p_equa:.0f}%", help="Media degli altri bookmaker, margine tolto: è la stima più fedele finora, non una certezza.")
-            c[2].metric("Quota equa", f"{r.quota_equa:.2f}")
-            c[3].metric("Prezzo migliore del mercato", f"{100 * r.vantaggio:+.1f}%", help="Quanto paga in più rispetto alla quota equa del consenso. Non è un guadagno garantito.")
-            st.caption(f"{r.bookmaker} · {quote_age_text(r.eta_min, True)} · confronto con {int(r.n_altri)} altri bookmaker"
-                       + (f" · ⚠ {r.nota}" if r.nota else ""))
-    st.warning("Una quota vicina a 2 vince circa una volta su due: **può perdere**, nessuna giocata è sicura. "
-               "Il vantaggio è solo sul prezzo rispetto agli altri bookmaker; controlla sempre su Sisal che la giocata e la quota esistano.")
+            c[0].metric("Quota totale", f"{p.odds:.2f}", help=f"{p.n} selezioni su {p.book}")
+            c[1].metric("Probabilità che vincano tutte", f"{100 * p.p_all:.0f}%", help="Prodotto delle probabilità del mercato (margine tolto) di ogni selezione, una per partita. Non è una certezza.")
+            c[2].metric("Quota equa", f"{1 / p.p_all:.2f}")
+            c[3].metric("Prezzo rispetto al mercato", f"{100 * p.ev:+.1f}%", help="Positivo = paga più della quota equa; negativo = paga meno (il margine del bookmaker). Non è un guadagno garantito.")
+            lines = pd.DataFrame([{"Giocatore": l.giocatore, "Partita": f"{l.evento} · {to_local(l.inizio).strftime('%d/%m %H:%M')}", "Giocata": l.descr,
+                                   "Quota": l.odds, "Probabilità": f"{100 * l.p_win:.0f}%"} for l in p.legs])
+            st.dataframe(lines, hide_index=True, width="stretch", column_config={"Quota": st.column_config.NumberColumn("Quota", format="%.2f")})
+            st.caption(f"Tutte le quote sono di {p.book}.")
+    st.warning("Nessuna multipla è sicura: ogni selezione può perdere e basta una per perdere tutto. Le probabilità qui sono quelle del **mercato** (media degli altri bookmaker, "
+               "margine tolto), perché quelle del modello finora non hanno battuto il mercato. Una multipla a quota 2 riesce circa una volta su due e paga il margine più volte "
+               "rispetto a una singola. Controlla sempre su Sisal che giocate e quote esistano.")
     st.divider()
 
 
@@ -83,7 +89,6 @@ def render() -> None:
     stake = float(st.session_state["stake"])
     st.markdown("<style>[data-testid='stMetricValue']{font-size:1.7rem}</style>", unsafe_allow_html=True)
 
-    _daily(ctx)
     if not st.session_state.get("show_under", False):
         st.caption("Sono mostrate solo giocate **Over**. Per vedere anche gli Under attiva «Mostra anche gli Under» nella barra laterale.")
     c1, c2, c3 = st.columns([2, 1, 1])
@@ -105,6 +110,7 @@ def render() -> None:
     st.write("")
 
     if picks.empty:
+        _doubles(ctx)
         if n_priced == 0:
             st.warning("Nessuna quota è stata valutata: i giocatori non hanno abbastanza partite di storico. Nessuna probabilità viene inventata. "
                        "Dettagli nella pagina «Copertura dati».")
@@ -117,6 +123,7 @@ def render() -> None:
         st.page_link(st.session_state["_pages"]["copertura"], label="Copertura dati", icon=":material/fact_check:")
         return
 
+    _doubles(ctx)
     st.subheader("Le 3 giocate migliori")
     top = most_profitable(picks, 3)
     for col, (_, r) in zip(st.columns(len(top)), top.iterrows()):

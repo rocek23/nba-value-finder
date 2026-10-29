@@ -50,7 +50,7 @@ def _table(d, stake: float, key: str) -> None:
     st.dataframe(show, hide_index=True, width="stretch", column_config=cols, key=key, height=min(480, 38 + 35 * len(show)))
 
 
-MIN_PRICE_EDGE = -0.06  # sotto questo prezzo (piu' di 6% peggio della quota equa) la multipla non viene proposta
+MIN_PRICE_EDGE = -0.10  # sotto questo prezzo (piu' di 10% peggio della quota equa) la multipla non viene proposta
 
 
 def _doubles(ctx) -> None:
@@ -62,7 +62,7 @@ def _doubles(ctx) -> None:
     res = B.search(legs, 2.0, tolerance=0.10, min_sel=2, max_sel=3, min_ev=MIN_PRICE_EDGE)
     if not res.proposals:
         st.info("Oggi non ci sono abbastanza selezioni a quota bassa, con un confronto credibile tra bookmaker e un prezzo ragionevole "
-                "(non più del 6% peggiore della quota equa), per comporre una multipla vicino a 2. Meglio nessuna multipla che una forzata.")
+                "(non più del 10% peggiore della quota equa), per comporre una multipla vicino a 2. Meglio nessuna multipla che una forzata.")
     for p in res.proposals:
         with st.container(border=True):
             st.markdown("".join(f'<span style="display:inline-block;padding:.12rem .6rem;border-radius:999px;background:#1b2540;border:1px solid #2b3655;'

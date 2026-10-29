@@ -1,0 +1,43 @@
+name: Aggiorna dati
+
+# Aggiornamento automatico: quote, storico, chiusura dei risultati, registro delle giocate.
+# Gli orari sono in UTC (a Roma: +1 ora d'inverno, +2 d'estate) e GitHub puo' ritardarli di qualche minuto.
+on:
+  schedule:
+    - cron: "0 9 * * *"     # ~10:00 Roma: chiude i risultati della notte
+    - cron: "0 13 * * *"    # ~14:00 Roma: prime quote del giorno
+    - cron: "0 18 * * *"    # ~19:00 Roma
+    - cron: "30 22 * * *"   # ~23:30 Roma: ultime quote prima delle partite
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "refresh = quote e storico; settle = solo risultati"
+        type: choice
+        options: [refresh, settle]
+        default: refresh
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aggiorna-dati
+  cancel-in-progress: false
+
+jobs:
+  aggiorna:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONPATH: src
+      BALLDONTLIE_API_KEY: ${{ secrets.BALLDONTLIE_API_KEY }}
+      THE_ODDS_API_KEY: ${{ secrets.THE_ODDS_API_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Esegui
+        run: python -m nba_vf.cli ${{ github.event.schedule == '0 9 * * *' && 'settle' || github.event.inputs.command || 'refresh' }}

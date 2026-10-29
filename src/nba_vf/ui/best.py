@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .injuries import OUT, injury_level
+from .injuries import OUT, injury_level, mask
 from .labels import fmt_age, game_title, team_label, to_local
 from .tables import best_per_prop
 
@@ -52,7 +52,7 @@ def build_picks(rows: pd.DataFrame, stake: float, *, include_low: bool = False, 
         return pd.DataFrame(columns=["key"] + PICK_COLUMNS + ["prop_id", "lato"])
     d = rows[rows["priced"] & (rows["roi"] > 0)]
     if "infortunio" in d.columns:  # un giocatore segnalato «Out» non gioca: la giocata non ha una probabilita' sensata
-        d = d[[injury_level(s) != OUT for s in d["infortunio"].fillna("")]]
+        d = d[mask(d["infortunio"].fillna(""), lambda l: l != OUT)]
     if not include_under:
         d = d[d["lato"] == "Over"]
     if markets:

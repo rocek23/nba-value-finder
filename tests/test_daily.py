@@ -111,3 +111,17 @@ def test_page_live_without_data_shows_no_doubles(isolated):
     at.sidebar.radio(key="mode_label").set_value("Live (dati API)").run()
     assert not at.exception, [e.value for e in at.exception]
     assert not [s for s in at.subheader if s.value == "Multiple vicino a quota 2"]
+
+
+def test_empty_after_filters_with_injury_column_does_not_crash():
+    """Regressione: se i filtri precedenti svuotano la tabella, il filtro infortuni non deve togliere le colonne (KeyError 'lato')."""
+    rows = pd.DataFrame(rows_for([1.45, 1.46, 1.47, 1.48], manuale=True, infortunio=""))
+    assert market_legs(rows, NOW) == []
+    past = pd.DataFrame(rows_for([1.45, 1.46, 1.47, 1.48], infortunio=""))
+    assert market_legs(past, pd.Timestamp("2031-01-01", tz="UTC").to_pydatetime()) == []
+    legs, funnel = B.eligible_legs(pd.DataFrame([make_rows(manuale=True, infortunio="")]), NOW)
+    assert legs == [] and funnel[-1][1] == 0
+    from nba_vf.ui.best import build_picks
+    base = dict(make_rows(), roi=-.1, roi_lo=-.2, quota_equa=1.9, ev=-1.0, infortunio="")
+    assert build_picks(pd.DataFrame([base]), 10.0, fresh_only=False).empty                     # nessuna giocata con valore: tabella vuota ma valida
+    assert build_picks(pd.DataFrame([dict(base, roi=.1, priced=False)]), 10.0, fresh_only=False).empty

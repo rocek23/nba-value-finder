@@ -20,7 +20,7 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 
-from .injuries import OUT, injury_level
+from .injuries import OUT, mask
 
 TARGETS = (2, 5, 10, 25, 50, 100)
 MIN_GAMES = 25            # sotto questo storico una stima non e' considerata abbastanza solida
@@ -154,7 +154,7 @@ def eligible_legs(rows: pd.DataFrame, now: datetime, *, markets: Sequence[str] |
     d = d[d["p_win_lo"].notna() & d["p_win_hi"].notna() & (d["p_win"] > 0) & (d["quota"] > 1)]
     funnel.append(("Con intervallo di incertezza", len(d)))
     if "infortunio" in d.columns:
-        d = d[[injury_level(s) != OUT for s in d["infortunio"].fillna("")]]
+        d = d[mask(d["infortunio"].fillna(""), lambda l: l != OUT)]
     funnel.append(("Giocatore non segnalato «Out»", len(d)))
     if not include_under:
         d = d[d["lato"] == "Over"]

@@ -12,7 +12,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-from .injuries import OUT, injury_level
+from .injuries import mask
 
 MIN_OTHER_BOOKS = 3
 
@@ -57,7 +57,7 @@ def market_legs(rows: pd.DataFrame, now: datetime, *, include_under: bool = Fals
     d = d[~d["manuale"] & ~d["obsoleta"] & d["inizio"].notna()]
     d = d[[pd.Timestamp(t).to_pydatetime() > now for t in d["inizio"]]] if len(d) else d
     if "infortunio" in d.columns:
-        d = d[[injury_level(s) == "" for s in d["infortunio"].fillna("")]]
+        d = d[mask(d["infortunio"].fillna(""), lambda l: l == "")]
     if not include_under:
         d = d[d["lato"] == "Over"]
     d = d[(d["linea"] % 1).abs() > 1e-9]

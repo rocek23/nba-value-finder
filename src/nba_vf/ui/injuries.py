@@ -16,6 +16,13 @@ def injury_level(status: str | None) -> str:
     return OUT if "out" in s.split() or s.startswith("out") else DOUBT
 
 
+def mask(values, keep) -> "np.ndarray":
+    """Maschera booleana sugli stati (sicura anche con zero righe: una lista vuota come indice toglierebbe tutte le colonne)."""
+    import numpy as np
+
+    return np.array([keep(injury_level(s)) for s in values], dtype=bool)
+
+
 def injury_status(bundle, key: str) -> str:
     """Stato segnalato per il giocatore, oppure stringa vuota (anche se l'elenco non e' stato scaricato)."""
     inj = getattr(bundle, "injuries", None)

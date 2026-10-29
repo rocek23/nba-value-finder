@@ -53,7 +53,7 @@ def _table(d, stake: float, key: str) -> None:
 MIN_PRICE_EDGE = -0.10  # sotto questo prezzo (piu' di 10% peggio della quota equa) la multipla non viene proposta
 
 
-def _doubles(ctx) -> None:
+def _doubles_section(ctx) -> None:
     """2-3 multiple vicino a quota 2 fatte con quote basse. Probabilita' del MERCATO (media degli altri bookmaker), non del modello."""
     from ...models import utc_now
     from ..labels import to_local
@@ -80,6 +80,14 @@ def _doubles(ctx) -> None:
                "margine tolto), perché quelle del modello finora non hanno battuto il mercato. Una multipla a quota 2 riesce circa una volta su due e paga il margine più volte "
                "rispetto a una singola. Controlla sempre su Sisal che giocate e quote esistano.")
     st.divider()
+
+
+def _doubles(ctx) -> None:
+    """Una sezione aggiuntiva non deve mai far cadere la pagina: in caso di errore lo si dice e il resto resta utilizzabile."""
+    try:
+        _doubles_section(ctx)
+    except Exception as exc:
+        st.warning(f"Le multiple vicino a quota 2 non sono disponibili in questo momento ({type(exc).__name__}).")
 
 
 def render() -> None:

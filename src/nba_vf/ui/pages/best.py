@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import pandas as pd
 import streamlit as st
 
 from .. import shell
 from .. import widgets as W
 from .. import theme as T
+from ..daily import daily_picks
 from ..best import HIGH, LOW, MEDIUM, RELIABILITY_HELP, build_picks, by_game, for_game, most_probable, most_profitable
 from ..coverage import INSUFFICIENT, NONE, build_coverage
 from ..labels import fmt_age
@@ -47,6 +49,33 @@ def _table(d, stake: float, key: str) -> None:
     st.dataframe(show, hide_index=True, width="stretch", column_config=cols, key=key, height=min(480, 38 + 35 * len(show)))
 
 
+def _daily(ctx) -> None:
+    from ...models import utc_now
+    from ..labels import to_local
+    from ..best import quote_age_text
+    st.subheader("Giocata del giorno")
+    picks = daily_picks(ctx.rows, utc_now(), include_under=bool(st.session_state.get("show_under", False)))
+    if picks.empty:
+        st.info("Oggi nessuna quota tra 1,80 e 2,20 ha un prezzo migliore degli altri bookmaker in modo credibile. "
+                "Meglio nessuna giocata che una forzata.")
+    for r in picks.itertuples():
+        with st.container(border=True):
+            l, rt = st.columns([3, 2])
+            l.markdown(f"**{r.giocatore}** · {r.squadra}")
+            rt.markdown(f'<div style="text-align:right;opacity:.7">{r.partita} · {to_local(pd.Timestamp(r.inizio).to_pydatetime()).strftime("%d/%m %H:%M")}</div>', unsafe_allow_html=True)
+            st.markdown(f"### {r.giocata}")
+            c = st.columns(4)
+            c[0].metric("Quota", f"{r.quota:.2f}", help=f"su {r.bookmaker}")
+            c[1].metric("Probabilità stimata", f"{100 * r.p_equa:.0f}%", help="Media degli altri bookmaker, margine tolto: è la stima più fedele finora, non una certezza.")
+            c[2].metric("Quota equa", f"{r.quota_equa:.2f}")
+            c[3].metric("Prezzo migliore del mercato", f"{100 * r.vantaggio:+.1f}%", help="Quanto paga in più rispetto alla quota equa del consenso. Non è un guadagno garantito.")
+            st.caption(f"{r.bookmaker} · {quote_age_text(r.eta_min, True)} · confronto con {int(r.n_altri)} altri bookmaker"
+                       + (f" · ⚠ {r.nota}" if r.nota else ""))
+    st.warning("Una quota vicina a 2 vince circa una volta su due: **può perdere**, nessuna giocata è sicura. "
+               "Il vantaggio è solo sul prezzo rispetto agli altri bookmaker; controlla sempre su Sisal che la giocata e la quota esistano.")
+    st.divider()
+
+
 def render() -> None:
     ctx = shell.begin("Migliori giocate", "Le quote con il miglior rapporto tra probabilità di riuscita e guadagno atteso, secondo il modello")
     shell.need_quotes(ctx)
@@ -54,6 +83,7 @@ def render() -> None:
     stake = float(st.session_state["stake"])
     st.markdown("<style>[data-testid='stMetricValue']{font-size:1.7rem}</style>", unsafe_allow_html=True)
 
+    _daily(ctx)
     if not st.session_state.get("show_under", False):
         st.caption("Sono mostrate solo giocate **Over**. Per vedere anche gli Under attiva «Mostra anche gli Under» nella barra laterale.")
     c1, c2, c3 = st.columns([2, 1, 1])

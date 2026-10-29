@@ -32,6 +32,7 @@ st.set_page_config(page_title="NBA Value Finder", page_icon="🏀", layout="wide
 
 PAGES = {
     "migliori": st.Page("views/best.py", title="Migliori giocate", icon=":material/emoji_events:", url_path="migliori-giocate", default=True),
+    "builder": st.Page("views/builder.py", title="Bet Builder AI", icon=":material/layers:", url_path="bet-builder"),
     "overview": st.Page("views/overview.py", title="Panoramica", icon=":material/dashboard:", url_path="panoramica"),
     "partite": st.Page("views/matches.py", title="Partite NBA", icon=":material/sports_basketball:", url_path="partite"),
     "props": st.Page("views/props.py", title="Player Props", icon=":material/list:", url_path="props"),
@@ -44,6 +45,6 @@ PAGES = {
     "impostazioni": st.Page("views/settings.py", title="Impostazioni e API", icon=":material/settings:", url_path="impostazioni"),
 }
 st.session_state["_pages"] = PAGES
-navigation = st.navigation({"Analisi": [PAGES[k] for k in ("migliori", "registro", "overview", "partite", "props", "value", "giocatore")],
+navigation = st.navigation({"Analisi": [PAGES[k] for k in ("migliori", "builder", "registro", "overview", "partite", "props", "value", "giocatore")],
                             "Strumenti": [PAGES[k] for k in ("copertura", "bookmaker", "backtest", "impostazioni")]})
 navigation.run()

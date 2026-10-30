@@ -24,8 +24,13 @@ def _card(r, stake: float) -> None:
         st.markdown(f"### {r.giocata}")
         st.markdown(f"Quota **{r.quota:.2f}** su **{r.bookmaker}** · quota equa {r.quota_equa:.2f}")
         c1, c2 = st.columns(2)
-        c1.metric("Probabilità", f"{r.prob:.0f}%", help="Probabilità di riuscita stimata dal modello. È una stima, non una certezza.")
-        c2.metric("Guadagno atteso", f"{r.guadagno:+.2f} €", help=f"Media per ogni {stake:g} € puntati se la giocata fosse ripetuta molte volte, secondo il modello. Se vince: +{r.vincita:.2f} €.")
+        pm = getattr(r, "prob_mercato", float("nan"))
+        if pm == pm:
+            c1.metric("Prob. mercato", f"{pm:.0f}%", help="Media degli altri bookmaker con il loro margine tolto. Nei dati storici è la stima più vicina alla realtà. Non è una certezza.")
+        else:
+            c1.metric("Prob. mercato", "n.d.", help="Servono almeno 3 altri bookmaker sulla stessa linea (e una linea non intera).")
+        c2.metric("Modello", f"{r.prob:.0f}%", help="Stima del modello statistico: nel registro è stata mediamente troppo ottimista (circa 61% stimato contro 51% reale).")
+        st.metric("Guadagno atteso", f"{r.guadagno:+.2f} €", help=f"Media per ogni {stake:g} € puntati se la giocata fosse ripetuta molte volte, secondo il modello. Se vince: +{r.vincita:.2f} €.")
         st.caption(r.nota_dato)
 
 
@@ -37,14 +42,15 @@ def _table(d, stake: float, key: str) -> None:
         "giocata": st.column_config.TextColumn("Giocata"),
         "bookmaker": st.column_config.TextColumn("Bookmaker"),
         "quota": st.column_config.NumberColumn("Quota", format="%.2f"),
-        "prob": st.column_config.NumberColumn("Probabilità", format="%.0f%%"),
+        "prob_mercato": st.column_config.NumberColumn("Prob. mercato", format="%.0f%%", help="Media degli altri bookmaker, margine tolto. Vuota se i bookmaker sono meno di 4."),
+        "prob": st.column_config.NumberColumn("Stima modello", format="%.0f%%"),
         "quota_equa": st.column_config.NumberColumn("Quota equa", format="%.2f"),
         "guadagno": st.column_config.NumberColumn(f"Guadagno atteso ({stake:g} €)", format="%+.2f €"),
         "vincita": st.column_config.NumberColumn(f"Se vince ({stake:g} €)", format="+%.2f €"),
         "affidabilita": st.column_config.TextColumn("Affidabilità"),
         "nota_dato": st.column_config.TextColumn("Affidabilità del dato"),
     }
-    show = d[["giocatore", "squadra", "partita", "giocata", "bookmaker", "quota", "prob", "quota_equa",
+    show = d[["giocatore", "squadra", "partita", "giocata", "bookmaker", "quota", "prob_mercato", "prob", "quota_equa",
               "guadagno", "vincita", "affidabilita", "nota_dato"]].copy()
     show["partita"] = d["partita"] + " · " + d["inizio"]
     st.dataframe(show, hide_index=True, width="stretch", column_config=cols, key=key, height=min(480, 38 + 35 * len(show)))
@@ -168,7 +174,8 @@ def render() -> None:
 
     with st.expander("Come leggere questa pagina"):
         st.markdown(
-            "- **Probabilità**: quanto spesso il modello stima che la giocata riesca. Non è una certezza.\n"
+            "- **Prob. mercato**: quanto spesso riesce la giocata secondo la media degli altri bookmaker, margine tolto. È la stima più realistica che abbiamo (vuota se i bookmaker sono pochi).\n"
+            "- **Stima modello**: quanto spesso il modello stima che riesca. Nel registro è stata troppo ottimista: leggila come il caso migliore. Non è una certezza.\n"
             "- **Quota equa**: la quota a cui la giocata sarebbe a pareggio. Se quella offerta è più alta, la giocata ha *valore*.\n"
             f"- **Guadagno atteso**: quanto si guadagna in media per ogni {stake:g} € puntati, se la stessa giocata fosse ripetuta moltissime volte. Su una singola scommessa si può perdere.\n"
             "- **Affidabilità**:\n"

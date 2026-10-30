@@ -150,3 +150,21 @@ def test_under_picks_can_be_hidden():
     over = build_picks(rows, 10.0, include_low=True, fresh_only=False, include_under=False)
     assert set(both["lato"]) == {"Over", "Under"} and set(over["lato"]) == {"Over"}
     assert len(over) < len(both)
+
+
+def test_market_prob_uses_other_books_only_and_is_nan_with_few_books():
+    import numpy as np
+    import pandas as pd
+    from nba_vf.ui.best import market_prob
+
+    def mk(book, over, under, line=24.5):
+        return {"prop_id": "p1", "lato": "Over", "book": book, "quota": over, "linea": line}, {"prop_id": "p1", "lato": "Under", "book": book, "quota": under, "linea": line}
+
+    rows = pd.DataFrame([r for b, o, u in [("A", 1.90, 1.90), ("B", 1.80, 2.00), ("C", 1.80, 2.00), ("D", 1.80, 2.00)] for r in mk(b, o, u)])
+    pick = rows[(rows["lato"] == "Over") & (rows["book"] == "A")]
+    p = market_prob(rows, pick)
+    assert 50 < p[0] < 55  # media degli altri tre: 0.5263.. senza margine
+    few = rows[rows["book"].isin(["A", "B"])]
+    assert np.isnan(market_prob(few, few[(few["lato"] == "Over") & (few["book"] == "A")])[0])
+    whole = rows.assign(linea=25.0)
+    assert np.isnan(market_prob(whole, whole[(whole["lato"] == "Over") & (whole["book"] == "A")])[0])

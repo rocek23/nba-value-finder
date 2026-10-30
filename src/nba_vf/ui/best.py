@@ -35,7 +35,7 @@ def data_note(n_games: float, eta_min: float, known: bool, max_age: float | None
     return f"Storico: {n} · Quota {quote_age_text(eta_min, known, max_age)}"
 
 
-PICK_COLUMNS = ["giocatore", "squadra", "partita", "inizio", "giocata", "bookmaker", "quota", "prob", "quota_equa",
+PICK_COLUMNS = ["giocatore", "squadra", "partita", "inizio", "giocata", "bookmaker", "quota", "prob", "prob_mercato", "quota_equa",
                 "guadagno", "vincita", "affidabilita", "partite", "eta_min", "nota_dato"]
 
 
@@ -43,6 +43,26 @@ def reliability(n_games: float, roi: float, roi_lo: float) -> str:
     if n_games is None or np.isnan(n_games) or n_games < 25:
         return LOW
     return HIGH if (roi_lo == roi_lo and roi_lo > 0) else MEDIUM
+
+
+def market_prob(rows: pd.DataFrame, d: pd.DataFrame) -> np.ndarray:
+    """Probabilita' del MERCATO (%) per le righe di d: media degli ALTRI bookmaker, margine tolto; NaN se meno di 3 altri bookmaker."""
+    from .daily import MIN_OTHER_BOOKS, consensus_table
+
+    nan = np.full(len(d), np.nan)
+    try:
+        cons = consensus_table(rows)
+        if cons.empty or "book" not in d.columns:
+            return nan
+        cons = cons[cons["n_altri"] >= MIN_OTHER_BOOKS].drop_duplicates(["prop_id", "lato", "book"])
+        m = d[["prop_id", "lato", "book"]].merge(cons[["prop_id", "lato", "book", "p_equa"]], on=["prop_id", "lato", "book"], how="left")
+        # linee intere: il margine a due vie non gestisce il rimborso, quindi nessuna probabilita' di mercato
+        whole = ((d["linea"].values % 1) == 0)
+        out = 100 * m["p_equa"].values.astype(float)
+        out[whole] = np.nan
+        return out
+    except Exception:  # la probabilita' di mercato e' un'aggiunta: non deve mai far cadere la pagina
+        return nan
 
 
 def build_picks(rows: pd.DataFrame, stake: float, *, include_low: bool = False, fresh_only: bool = True,
@@ -71,7 +91,7 @@ def build_picks(rows: pd.DataFrame, stake: float, *, include_low: bool = False, 
         "inizio": [to_local(t).strftime("%d/%m %H:%M") if t is not None and t == t else "—" for t in d["inizio"]],
         "giocata": [f"{m} {l} {x:g}" for m, l, x in zip(d["mercato"], d["lato"], d["linea"])],
         "bookmaker": d["bookmaker"].values, "quota": d["quota"].values,
-        "prob": 100 * d["p_win"].values, "quota_equa": d["quota_equa"].values,
+        "prob": 100 * d["p_win"].values, "prob_mercato": market_prob(rows, d), "quota_equa": d["quota_equa"].values,
         "guadagno": stake * d["roi"].values, "vincita": stake * (d["quota"].values - 1),
         "affidabilita": [reliability(n, r, lo) for n, r, lo in zip(d["n_partite"], d["roi"], d["roi_lo"])],
         "partite": d["n_partite"].values, "eta_min": d["eta_min"].values,

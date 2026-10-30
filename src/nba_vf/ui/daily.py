@@ -42,13 +42,13 @@ def consensus_table(rows: pd.DataFrame) -> pd.DataFrame:
 
 
 def market_legs(rows: pd.DataFrame, now: datetime, *, include_under: bool = False, odds_max: float = 1.60, p_min: float = 0.60,
-                min_books: int = MIN_OTHER_BOOKS) -> list:
+                min_books: int = MIN_OTHER_BOOKS, min_lines: dict | None = None) -> list:
     """Selezioni a quota bassa con probabilita' del MERCATO (media degli altri bookmaker, margine tolto), senza usare il modello.
 
     p_lo / p_hi sono la probabilita' piu' bassa e piu' alta tra gli altri bookmaker: misurano quanto i bookmaker sono in disaccordo.
     Linee intere escluse (il margine a due vie non gestisce il rimborso).
     """
-    from .builder import Leg
+    from .builder import Leg, apply_min_lines
 
     cons = consensus_table(rows)
     if cons.empty:
@@ -62,6 +62,7 @@ def market_legs(rows: pd.DataFrame, now: datetime, *, include_under: bool = Fals
         d = d[d["lato"] == "Over"]
     d = d[(d["linea"] % 1).abs() > 1e-9]
     d = d[(d["quota"] <= odds_max) & (d["quota"] > 1.0) & (d["p_equa"] >= p_min) & (d["n_altri"] >= min_books)]
+    d = apply_min_lines(d, min_lines)
     legs = []
     for r in d.itertuples():
         legs.append(Leg(id=f"{r.prop_id}|{r.lato}|{r.book}", key=r.key, giocatore=r.giocatore, squadra=str(r.squadra or ""), game=f"{r.gday}|{r.evento}",

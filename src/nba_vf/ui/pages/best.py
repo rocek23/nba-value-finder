@@ -64,7 +64,8 @@ def _doubles_section(ctx) -> None:
     from ...models import utc_now
     from ..labels import to_local
     st.subheader("Multiple vicino a quota 2")
-    legs = market_legs(ctx.rows, utc_now(), include_under=bool(st.session_state.get("show_under", False)))
+    legs = market_legs(ctx.rows, utc_now(), include_under=bool(st.session_state.get("show_under", False)),
+                        min_lines=st.session_state.get("min_lines", B.default_min_lines(ctx.rows)))
     res = B.search(legs, 2.0, tolerance=0.10, min_sel=2, max_sel=3, min_ev=MIN_PRICE_EDGE)
     if not res.proposals:
         st.info("Oggi non ci sono abbastanza selezioni a quota bassa, con un confronto credibile tra bookmaker e un prezzo ragionevole "

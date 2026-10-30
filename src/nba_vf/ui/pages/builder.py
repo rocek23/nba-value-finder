@@ -160,10 +160,19 @@ def render() -> None:
         mixed = st.toggle("Consenti bookmaker diversi nella stessa multipla", value=False, key="bb_mixed",
                           help="Spento (consigliato): ogni multipla usa un solo bookmaker. Acceso: la quota totale potrebbe non esistere presso nessun operatore.")
         prud = st.toggle("Mostra solo multiple con EV prudente positivo", value=False, key="bb_prud")
+        st.markdown("**Linea minima offerta dal tuo bookmaker** (le linee più basse vengono escluse)")
+        ml_cols = st.columns(3)
+        min_lines = {}
+        for i, m in enumerate(sorted(rows["mercato"].unique())):
+            default = float(B.default_min_lines(rows).get(m, 0.0))
+            min_lines[m] = ml_cols[i % 3].number_input(str(m), min_value=0.0, max_value=100.0, value=default, step=1.0, key=f"bb_minl_{m}",
+                                                      help="0 = nessun limite. Es.: se il bookmaker parte da Over 1.5 assist, scrivi 1.5.")
+        st.session_state["min_lines"] = {k: v for k, v in min_lines.items() if v > 0}
         st.caption("Gli Under sono inclusi solo se attivi «Mostra anche gli Under» nella barra laterale.")
 
     now = utc_now()
-    legs, funnel = B.eligible_legs(rows, now, markets=markets, books=books or None, include_under=show_under)
+    legs, funnel = B.eligible_legs(rows, now, markets=markets, books=books or None, include_under=show_under,
+                                  min_lines=st.session_state.get("min_lines"))
     n_games = len({l.game for l in legs})
     n_books = len({l.book for l in legs})
     st.caption(f"Selezioni valide: **{len(legs)}** · partite: **{n_games}** · bookmaker: **{n_books}**. "

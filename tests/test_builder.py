@@ -282,3 +282,14 @@ def test_page_live_snapshot_uses_only_real_quotes_and_one_selection_per_game(iso
         assert set(t["Bookmaker"]) == {"Book X"} and set(t["Quota"]) == {2.2}      # quote reali dello snapshot, un solo bookmaker
         assert t["Partita"].str.split(" · ").str[0].nunique() == len(t)             # una selezione per partita
         assert all(g.startswith("Giocatore Test") for g in t["Giocatore"])
+
+
+def test_min_lines_drops_lines_below_bookmaker_minimum():
+    import pandas as pd
+    from nba_vf.ui.builder import apply_min_lines, default_min_lines
+
+    d = pd.DataFrame({"mercato": ["Assist", "Assist", "Punti"], "linea": [0.5, 1.5, 0.5]})
+    out = apply_min_lines(d, {"Assist": 1.5})
+    assert out["linea"].tolist() == [1.5, 0.5] and out["mercato"].tolist() == ["Assist", "Punti"]
+    assert len(apply_min_lines(d, None)) == 3 and len(apply_min_lines(d, {})) == 3
+    assert default_min_lines(d) == {"Assist": 1.5}

@@ -134,8 +134,27 @@ class BuildResult:
 
 
 # ---- selezioni ammissibili -------------------------------------------------------------------------------
+def default_min_lines(rows: pd.DataFrame) -> dict:
+    """Valore iniziale: il bookmaker dell'utente parte da Over 1.5 negli assist (Over 0.5 non esiste)."""
+    if rows is None or len(rows) == 0 or "mercato" not in rows.columns:
+        return {}
+    return {m: 1.5 for m in rows["mercato"].dropna().unique() if "assist" in str(m).lower()}
+
+
+def apply_min_lines(d: pd.DataFrame, min_lines: dict | None) -> pd.DataFrame:
+    """Toglie le quote con linea sotto il minimo offerto dal proprio bookmaker (es. Assist: il bookmaker parte da Over 1.5)."""
+    if not min_lines or d is None or len(d) == 0 or "mercato" not in d.columns:
+        return d
+    keep = np.ones(len(d), dtype=bool)
+    merc, line = d["mercato"].astype(str).values, d["linea"].astype(float).values
+    for m, lo in min_lines.items():
+        if lo and lo > 0:
+            keep &= ~((merc == m) & (line < float(lo) - 1e-9))
+    return d[keep]
+
+
 def eligible_legs(rows: pd.DataFrame, now: datetime, *, markets: Sequence[str] | None = None, books: Sequence[str] | None = None,
-                  include_under: bool = False, min_games: int = MIN_GAMES) -> tuple[list[Leg], list[tuple[str, int]]]:
+                  include_under: bool = False, min_games: int = MIN_GAMES, min_lines: dict | None = None) -> tuple[list[Leg], list[tuple[str, int]]]:
     """Selezioni utilizzabili e imbuto dei filtri (quante quote restano a ogni passo). Una riga = una quota reale di un bookmaker."""
     funnel: list[tuple[str, int]] = []
     if rows is None or rows.empty:
@@ -165,6 +184,9 @@ def eligible_legs(rows: pd.DataFrame, now: datetime, *, markets: Sequence[str] |
     if books:
         d = d[d["bookmaker"].isin(books)]
     funnel.append(("Bookmaker scelti", len(d)))
+    if min_lines:
+        d = apply_min_lines(d, min_lines)
+        funnel.append(("Linea almeno pari al minimo del tuo bookmaker", len(d)))
     legs = []
     for r in d.itertuples():
         lo = min(float(r.p_win_lo), float(r.p_win))

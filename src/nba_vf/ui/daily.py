@@ -71,3 +71,53 @@ def market_legs(rows: pd.DataFrame, now: datetime, *, include_under: bool = Fals
                         p_hi=float(max(r.p_max, r.p_equa)), n_games=int(r.n_partite) if r.n_partite == r.n_partite else 0,
                         eta_min=float(r.eta_min) if r.eta_min == r.eta_min else float("nan"), quote_known=bool(r.ts_nota), prop_id=r.prop_id))
     return legs
+
+
+MIN_TOP_PROB = 0.62      # probabilita' minima del mercato per entrare tra le "Top del giorno"
+TOP_PRICE_FLOOR = -0.02  # la quota migliore non puo' pagare piu' del 2% sotto la quota equa del consenso
+TOP_MODEL_GAP = 0.05     # il modello non deve stimare >5 punti meno del mercato (se lo contraddice, la giocata e' scartata)
+
+
+def top_of_day(rows: pd.DataFrame, now: datetime, *, n: int = 3, include_under: bool = False, min_lines: dict | None = None,
+               min_prob: float = MIN_TOP_PROB, min_books: int = MIN_OTHER_BOOKS) -> pd.DataFrame:
+    """Le giocate con la probabilita' (di mercato) piu' alta, a prezzo corretto, una per partita e una per giocatore.
+
+    Probabilita' = media degli ALTRI bookmaker con il margine tolto. Si tiene la quota migliore di ogni giocata solo se non paga
+    meno del consenso (+ tolleranza), il modello non la contraddice, il giocatore non e' «Out» e la linea esiste nel proprio bookmaker.
+    Nessuna promessa: a quota bassa si vince piu' spesso, ma il valore atteso resta al piu' vicino a zero.
+    """
+    from .builder import apply_min_lines
+
+    cols = ["giocatore", "squadra", "partita", "inizio", "giocata", "bookmaker", "quota", "prob_mercato", "prob_modello", "n_altri",
+            "prezzo", "range", "partite", "nota", "prop_id", "lato", "gday"]
+    empty = pd.DataFrame(columns=cols)
+    cons = consensus_table(rows)
+    if cons.empty:
+        return empty
+    d = rows.merge(cons, on=["prop_id", "lato", "book"], how="inner")
+    d = d[~d["manuale"] & ~d["obsoleta"] & d["inizio"].notna() & d["priced"]]
+    d = d[[pd.Timestamp(t).to_pydatetime() > now for t in d["inizio"]]] if len(d) else d
+    if "infortunio" in d.columns:
+        d = d[mask(d["infortunio"].fillna(""), lambda l: l == "")]
+    if not include_under:
+        d = d[d["lato"] == "Over"]
+    d = d[((d["linea"] % 1).abs() > 1e-9) & (d["n_altri"] >= min_books) & (d["quota"] > 1.0) & (d["n_partite"] >= 25)]
+    d = apply_min_lines(d, min_lines)
+    if len(d) == 0:
+        return empty
+    d = d.assign(prezzo=d["quota"] * d["p_equa"] - 1)
+    d = d[(d["p_equa"] >= min_prob) & (d["prezzo"] >= TOP_PRICE_FLOOR) & (d["p_win"] >= d["p_equa"] - TOP_MODEL_GAP)]
+    if len(d) == 0:
+        return empty
+    d = d.sort_values("quota", ascending=False).drop_duplicates(["prop_id", "lato"])
+    d = d.sort_values(["p_equa", "prezzo"], ascending=False)
+    d = d.drop_duplicates("key").drop_duplicates(["gday", "evento"]).head(n)
+    out = pd.DataFrame({
+        "giocatore": d["giocatore"].values, "squadra": d["squadra"].astype(str).values, "partita": d["evento"].values,
+        "inizio": [pd.Timestamp(t) for t in d["inizio"]], "giocata": [f"{m} {l} {x:g}" for m, l, x in zip(d["mercato"], d["lato"], d["linea"])],
+        "bookmaker": d["bookmaker"].values, "quota": d["quota"].values.astype(float), "prob_mercato": 100 * d["p_equa"].values.astype(float),
+        "prob_modello": 100 * d["p_win"].values.astype(float), "n_altri": d["n_altri"].values.astype(int), "prezzo": 100 * d["prezzo"].values.astype(float),
+        "range": [f"{100 * lo:.0f}–{100 * hi:.0f}%" for lo, hi in zip(d["p_min"], d["p_max"])], "partite": d["n_partite"].values,
+        "nota": ["" for _ in range(len(d))], "prop_id": d["prop_id"].values, "lato": d["lato"].values, "gday": d["gday"].values,
+    })
+    return out.reset_index(drop=True)

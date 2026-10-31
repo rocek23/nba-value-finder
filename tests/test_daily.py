@@ -125,3 +125,28 @@ def test_empty_after_filters_with_injury_column_does_not_crash():
     base = dict(make_rows(), roi=-.1, roi_lo=-.2, quota_equa=1.9, ev=-1.0, infortunio="")
     assert build_picks(pd.DataFrame([base]), 10.0, fresh_only=False).empty                     # nessuna giocata con valore: tabella vuota ma valida
     assert build_picks(pd.DataFrame([dict(base, roi=.1, priced=False)]), 10.0, fresh_only=False).empty
+
+
+def _top_rows(extra=None):
+    import pandas as pd
+    base = dict(manuale=False, obsoleta=False, priced=True, inizio=pd.Timestamp("2030-01-01", tz="UTC"), n_partite=40, gday="d1", evento="A @ B",
+                key="k1", giocatore="Gioc 1", squadra="A", mercato="Punti", market="points", linea=14.5, p_win=0.75, infortunio="", bookmaker="x", ts_nota=1, eta_min=5.0)
+    out = []
+    for book, o, u in [("b1", 1.30, 3.4), ("b2", 1.40, 3.1), ("b3", 1.32, 3.3), ("b4", 1.31, 3.3)]:
+        for lato, q in (("Over", o), ("Under", u)):
+            r = dict(base, prop_id="p1", lato=lato, book=book, quota=q, bookmaker=book)
+            r.update(extra or {})
+            out.append(r)
+    return pd.DataFrame(out)
+
+
+def test_top_of_day_picks_high_market_probability_with_fair_price():
+    from datetime import datetime, timezone
+    from nba_vf.ui.daily import top_of_day
+    now = datetime(2029, 12, 31, tzinfo=timezone.utc)
+    t = top_of_day(_top_rows(), now)
+    assert len(t) == 1 and t.loc[0, "lato"] == "Over" and t.loc[0, "prob_mercato"] > 70 and t.loc[0, "quota"] == 1.40
+    assert top_of_day(_top_rows({"p_win": 0.50}), now).empty        # il modello contraddice il mercato
+    assert top_of_day(_top_rows({"linea": 15.0}), now).empty         # linea intera: nessuna probabilita' affidabile
+    assert top_of_day(_top_rows({"infortunio": "Out"}), now).empty   # giocatore Out
+    assert top_of_day(_top_rows(), now, min_lines={"Punti": 20}).empty  # linea sotto il minimo del bookmaker

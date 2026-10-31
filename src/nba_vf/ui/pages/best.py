@@ -9,7 +9,7 @@ from .. import shell
 from .. import widgets as W
 from .. import theme as T
 from .. import builder as B
-from ..daily import market_legs
+from ..daily import market_legs, top_of_day
 from ..best import HIGH, LOW, MEDIUM, RELIABILITY_HELP, build_picks, by_game, for_game, most_probable, most_profitable
 from ..coverage import INSUFFICIENT, NONE, build_coverage
 from ..labels import fmt_age
@@ -89,6 +89,39 @@ def _doubles_section(ctx) -> None:
     st.divider()
 
 
+def _top_section(ctx) -> None:
+    """Le 1-3 giocate del giorno con la probabilita' di mercato piu' alta, a prezzo corretto. Nessuna promessa di guadagno."""
+    from ...models import utc_now
+    from ..labels import to_local
+    st.subheader("Le giocate più probabili di oggi")
+    st.caption("Fino a 3 giocate, una per partita: probabilità del **mercato** alta, prezzo non peggiore del consenso, modello d'accordo, linea disponibile sul tuo bookmaker.")
+    t = top_of_day(ctx.rows, utc_now(), include_under=bool(st.session_state.get("show_under", False)),
+                   min_lines=st.session_state.get("min_lines", B.default_min_lines(ctx.rows)))
+    if t.empty:
+        st.info("Oggi nessuna giocata supera tutti i controlli (probabilità di mercato almeno 62%, almeno 3 altri bookmaker, prezzo corretto, modello d'accordo). "
+                "Meglio nessuna giocata che una forzata.")
+    for col, (_, r) in zip(st.columns(max(len(t), 1)), t.iterrows()):
+        with col, st.container(border=True):
+            st.markdown(f"**{r.giocatore}** · {r.squadra}")
+            st.caption(f"{r.partita} · {to_local(r.inizio).strftime('%d/%m %H:%M')}")
+            st.markdown(f"### {r.giocata}")
+            st.markdown(f"Quota **{r.quota:.2f}** su **{r.bookmaker}**")
+            a, b = st.columns(2)
+            a.metric("Prob. mercato", f"{r.prob_mercato:.0f}%", help=f"Media di {r.n_altri} altri bookmaker con il margine tolto (range {r.range}). Non è una certezza.")
+            b.metric("Modello", f"{r.prob_modello:.0f}%", help="Stima del modello: qui non contraddice il mercato.")
+            st.caption(f"Prezzo rispetto al consenso: {r.prezzo:+.1f}% · storico {int(r.partite)} partite")
+    st.caption("Una giocata a probabilità alta paga poco e può comunque perdere: il valore atteso resta vicino a zero o leggermente negativo (margine del bookmaker). "
+               "Controlla su Sisal che giocata e quota esistano.")
+    st.divider()
+
+
+def _top(ctx) -> None:
+    try:
+        _top_section(ctx)
+    except Exception as exc:  # una sezione aggiuntiva non deve far cadere la pagina
+        st.warning(f"Le giocate più probabili non sono disponibili in questo momento ({type(exc).__name__}).")
+
+
 def _doubles(ctx) -> None:
     """Una sezione aggiuntiva non deve mai far cadere la pagina: in caso di errore lo si dice e il resto resta utilizzabile."""
     try:
@@ -125,6 +158,7 @@ def render() -> None:
     st.write("")
 
     if picks.empty:
+        _top(ctx)
         _doubles(ctx)
         if n_priced == 0:
             st.warning("Nessuna quota è stata valutata: i giocatori non hanno abbastanza partite di storico. Nessuna probabilità viene inventata. "
@@ -138,6 +172,7 @@ def render() -> None:
         st.page_link(st.session_state["_pages"]["copertura"], label="Copertura dati", icon=":material/fact_check:")
         return
 
+    _top(ctx)
     _doubles(ctx)
     st.subheader("Le 3 giocate migliori")
     top = most_profitable(picks, 3)

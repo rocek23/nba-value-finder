@@ -79,7 +79,7 @@ TOP_MODEL_GAP = 0.05     # il modello non deve stimare >5 punti meno del mercato
 
 
 def top_of_day(rows: pd.DataFrame, now: datetime, *, n: int = 3, include_under: bool = False, min_lines: dict | None = None,
-               min_prob: float = MIN_TOP_PROB, min_books: int = MIN_OTHER_BOOKS) -> pd.DataFrame:
+               min_prob: float = MIN_TOP_PROB, min_books: int = MIN_OTHER_BOOKS, funnel: list | None = None) -> pd.DataFrame:
     """Le giocate con la probabilita' (di mercato) piu' alta, a prezzo corretto, una per partita e una per giocatore.
 
     Probabilita' = media degli ALTRI bookmaker con il margine tolto. Si tiene la quota migliore di ogni giocata solo se non paga
@@ -91,22 +91,45 @@ def top_of_day(rows: pd.DataFrame, now: datetime, *, n: int = 3, include_under: 
     cols = ["giocatore", "squadra", "partita", "inizio", "giocata", "bookmaker", "quota", "prob_mercato", "prob_modello", "n_altri",
             "prezzo", "range", "partite", "nota", "prop_id", "lato", "gday"]
     empty = pd.DataFrame(columns=cols)
+
+    def step(label, df):
+        if funnel is not None:
+            funnel.append((label, int(len(df[["prop_id", "lato"]].drop_duplicates())) if len(df) else 0))
+
+    if rows is not None and len(rows):
+        step("Giocate (prop + lato) disponibili", rows)
     cons = consensus_table(rows)
     if cons.empty:
+        step("Con almeno un confronto Over/Under tra bookmaker", cons)
         return empty
     d = rows.merge(cons, on=["prop_id", "lato", "book"], how="inner")
-    d = d[~d["manuale"] & ~d["obsoleta"] & d["inizio"].notna() & d["priced"]]
+    step("Con un confronto Over/Under tra bookmaker", d)
+    d = d[~d["manuale"] & ~d["obsoleta"] & d["inizio"].notna()]
+    step("Quota recente, non inserita a mano", d)
+    d = d[d["priced"]]
+    step("Con stima del modello (storico sufficiente)", d)
     d = d[[pd.Timestamp(t).to_pydatetime() > now for t in d["inizio"]]] if len(d) else d
+    step("Partita non ancora iniziata", d)
     if "infortunio" in d.columns:
         d = d[mask(d["infortunio"].fillna(""), lambda l: l == "")]
     if not include_under:
         d = d[d["lato"] == "Over"]
-    d = d[((d["linea"] % 1).abs() > 1e-9) & (d["n_altri"] >= min_books) & (d["quota"] > 1.0) & (d["n_partite"] >= 25)]
+    step("Giocatore non segnalato «Out» e lato ammesso", d)
+    d = d[(d["linea"] % 1).abs() > 1e-9]
+    step("Linea non intera", d)
+    d = d[(d["n_altri"] >= min_books) & (d["quota"] > 1.0) & (d["n_partite"] >= 25)]
+    step(f"Almeno {min_books} altri bookmaker e 25 partite di storico", d)
     d = apply_min_lines(d, min_lines)
+    step("Linea almeno pari al minimo del tuo bookmaker", d)
     if len(d) == 0:
         return empty
     d = d.assign(prezzo=d["quota"] * d["p_equa"] - 1)
-    d = d[(d["p_equa"] >= min_prob) & (d["prezzo"] >= TOP_PRICE_FLOOR) & (d["p_win"] >= d["p_equa"] - TOP_MODEL_GAP)]
+    d = d[d["p_equa"] >= min_prob]
+    step(f"Probabilità di mercato almeno {100 * min_prob:.0f}%", d)
+    d = d[d["prezzo"] >= TOP_PRICE_FLOOR]
+    step("Prezzo non peggiore del consenso (−2%)", d)
+    d = d[d["p_win"] >= d["p_equa"] - TOP_MODEL_GAP]
+    step("Modello d'accordo con il mercato", d)
     if len(d) == 0:
         return empty
     d = d.sort_values("quota", ascending=False).drop_duplicates(["prop_id", "lato"])

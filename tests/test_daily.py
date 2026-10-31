@@ -150,3 +150,15 @@ def test_top_of_day_picks_high_market_probability_with_fair_price():
     assert top_of_day(_top_rows({"linea": 15.0}), now).empty         # linea intera: nessuna probabilita' affidabile
     assert top_of_day(_top_rows({"infortunio": "Out"}), now).empty   # giocatore Out
     assert top_of_day(_top_rows(), now, min_lines={"Punti": 20}).empty  # linea sotto il minimo del bookmaker
+
+
+def test_top_of_day_funnel_counts_each_step():
+    from datetime import datetime, timezone
+    from nba_vf.ui.daily import top_of_day
+    f = []
+    top_of_day(_top_rows(), datetime(2029, 12, 31, tzinfo=timezone.utc), funnel=f)
+    labels = [a for a, _ in f]
+    assert labels[0].startswith("Giocate") and labels[-1].startswith("Modello") and f[-1][1] == 1
+    f2 = []
+    top_of_day(_top_rows({"p_win": 0.5}), datetime(2029, 12, 31, tzinfo=timezone.utc), funnel=f2)
+    assert f2[-1][1] == 0 and f2[-2][1] == 1

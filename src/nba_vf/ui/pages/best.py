@@ -95,8 +95,9 @@ def _top_section(ctx) -> None:
     from ..labels import to_local
     st.subheader("Le giocate più probabili di oggi")
     st.caption("Fino a 3 giocate, una per partita: probabilità del **mercato** alta, prezzo non peggiore del consenso, modello d'accordo, linea disponibile sul tuo bookmaker.")
+    funnel: list = []
     t = top_of_day(ctx.rows, utc_now(), include_under=bool(st.session_state.get("show_under", False)),
-                   min_lines=st.session_state.get("min_lines", B.default_min_lines(ctx.rows)))
+                   min_lines=st.session_state.get("min_lines", B.default_min_lines(ctx.rows)), funnel=funnel)
     if t.empty:
         st.info("Oggi nessuna giocata supera tutti i controlli (probabilità di mercato almeno 62%, almeno 3 altri bookmaker, prezzo corretto, modello d'accordo). "
                 "Meglio nessuna giocata che una forzata.")
@@ -110,6 +111,9 @@ def _top_section(ctx) -> None:
             a.metric("Prob. mercato", f"{r.prob_mercato:.0f}%", help=f"Media di {r.n_altri} altri bookmaker con il margine tolto (range {r.range}). Non è una certezza.")
             b.metric("Modello", f"{r.prob_modello:.0f}%", help="Stima del modello: qui non contraddice il mercato.")
             st.caption(f"Prezzo rispetto al consenso: {r.prezzo:+.1f}% · storico {int(r.partite)} partite")
+    with st.expander("Controllo dati: dove si perdono le giocate"):
+        st.dataframe(pd.DataFrame(funnel, columns=["Passaggio", "Giocate rimaste"]), hide_index=True, width="stretch")
+        st.caption("Ogni riga è un filtro: il numero dice quante giocate lo superano. Dove scende a zero c'è il motivo per cui oggi non esce nulla.")
     st.caption("Una giocata a probabilità alta paga poco e può comunque perdere: il valore atteso resta vicino a zero o leggermente negativo (margine del bookmaker). "
                "Controlla su Sisal che giocata e quota esistano.")
     st.divider()

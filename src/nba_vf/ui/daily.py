@@ -98,6 +98,12 @@ def top_of_day(rows: pd.DataFrame, now: datetime, *, n: int = 3, include_under: 
 
     if rows is not None and len(rows):
         step("Giocate (prop + lato) disponibili", rows)
+        if funnel is not None and {"lato", "book", "prop_id"} <= set(rows.columns):
+            funnel.append(("   di cui quote Over (righe)", int((rows["lato"] == "Over").sum())))
+            funnel.append(("   di cui quote Under (righe)", int((rows["lato"] == "Under").sum())))
+            funnel.append(("   bookmaker diversi nei dati", int(rows["book"].nunique())))
+            sides = rows.groupby(["prop_id", "book"])["lato"].nunique()
+            funnel.append(("   coppie giocata+bookmaker con Over e Under insieme", int((sides >= 2).sum())))
     cons = consensus_table(rows)
     if cons.empty:
         step("Con almeno un confronto Over/Under tra bookmaker", cons)

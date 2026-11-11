@@ -103,6 +103,46 @@ def build_picks(rows: pd.DataFrame, stake: float, *, include_low: bool = False, 
     return out.reset_index(drop=True)
 
 
+def game_status(rows: pd.DataFrame, picks: pd.DataFrame, now, *, include_under: bool = False, fresh_only: bool = True) -> pd.DataFrame:
+    """Una riga per partita non ancora iniziata: quante quote ci sono, quante valutate, quante con valore e perche' una partita puo' non comparire."""
+    cols = ["Partita", "Inizio", "Quote", "Valutate dal modello", "Con valore positivo", "Mostrate", "Perché"]
+    if rows is None or rows.empty or not {"gday", "evento", "inizio", "prop_id", "lato", "priced", "roi", "obsoleta"} <= set(rows.columns):
+        return pd.DataFrame(columns=cols)
+    d = rows[rows["inizio"].notna()]
+    d = d[[pd.Timestamp(t).to_pydatetime() > now for t in d["inizio"]]] if len(d) else d
+    if not include_under:
+        d = d[d["lato"] == "Over"]
+    shown = set(picks["prop_id"]) if picks is not None and len(picks) else set()
+    out = []
+    for (_, ev), g in d.groupby(["gday", "evento"], sort=False):
+        g = g.drop_duplicates(["prop_id", "lato", "book"]) if "book" in g.columns else g
+        pr = g[g["priced"]]
+        out_inj = mask(pr["infortunio"].fillna(""), lambda l: l == OUT) if "infortunio" in pr.columns and len(pr) else np.zeros(len(pr), dtype=bool)
+        pos = pr[(pr["roi"] > 0).values & ~out_inj]
+        fresh = pos[~pos["obsoleta"]]
+        n_all, n_pr, n_pos = len(g.drop_duplicates(["prop_id", "lato"])), len(pr.drop_duplicates(["prop_id", "lato"])), len(pos.drop_duplicates(["prop_id", "lato"]))
+        n_shown = len({p for p in g["prop_id"].unique() if p in shown})
+        if n_all == 0:
+            why = "nessuna quota"
+        elif n_pr == 0:
+            why = "giocatori senza abbastanza storico"
+        elif n_pos == 0:
+            why = "nessuna quota con valore positivo secondo il modello"
+        elif n_shown == 0 and fresh_only and len(fresh) == 0:
+            why = "valore positivo, ma quote più vecchie del limite: premi «Aggiorna dati live»"
+        elif n_shown == 0:
+            why = "valore positivo, ma campione di partite ridotto (attiva «Includi campione ridotto»)"
+        else:
+            why = "compare nell'elenco"
+        out.append({"Partita": _match(g.iloc[0]), "_t": pd.Timestamp(g["inizio"].iloc[0]), "Quote": n_all, "Valutate dal modello": n_pr,
+                    "Con valore positivo": n_pos, "Mostrate": n_shown, "Perché": why})
+    if not out:
+        return pd.DataFrame(columns=cols)
+    df = pd.DataFrame(out).sort_values("_t")
+    df["Inizio"] = [to_local(t).strftime("%d/%m %H:%M") for t in df["_t"]]
+    return df[cols].reset_index(drop=True)
+
+
 def _match(r) -> str:
     title = str(r.evento)
     if " @ " in title:

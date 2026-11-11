@@ -168,3 +168,25 @@ def test_market_prob_uses_other_books_only_and_is_nan_with_few_books():
     assert np.isnan(market_prob(few, few[(few["lato"] == "Over") & (few["book"] == "A")])[0])
     whole = rows.assign(linea=25.0)
     assert np.isnan(market_prob(whole, whole[(whole["lato"] == "Over") & (whole["book"] == "A")])[0])
+
+
+def test_game_status_explains_why_games_are_missing():
+    from datetime import datetime, timezone
+    import pandas as pd
+    from nba_vf.ui.best import game_status
+
+    t = pd.Timestamp("2030-01-01", tz="UTC")
+
+    def row(ev, pid, priced, roi, obs=False):
+        return dict(gday="d", evento=ev, inizio=t, prop_id=pid, lato="Over", book="x", priced=priced, roi=roi, obsoleta=obs, infortunio="")
+
+    rows = pd.DataFrame([row("A @ B", "p1", True, 0.1), row("C @ D", "p2", True, -0.1), row("E @ F", "p3", False, float("nan")), row("G @ H", "p4", True, 0.1, obs=True)])
+    picks = pd.DataFrame({"prop_id": ["p1"]})
+    gs = game_status(rows, picks, datetime(2029, 12, 31, tzinfo=timezone.utc))
+    why = dict(zip(gs["Partita"].str[:1], gs["Perché"]))
+    assert len(gs) == 4
+    assert "compare" in why["A"] or "compare" in list(gs[gs["Quote"] == 1]["Perché"])[0]
+    assert any("valore positivo secondo il modello" in w for w in gs["Perché"])
+    assert any("storico" in w for w in gs["Perché"])
+    assert any("più vecchie" in w for w in gs["Perché"])
+    assert game_status(rows, picks, datetime(2031, 1, 1, tzinfo=timezone.utc)).empty

@@ -10,7 +10,7 @@ from .. import widgets as W
 from .. import theme as T
 from .. import builder as B
 from ..daily import market_legs, top_of_day
-from ..best import HIGH, LOW, MEDIUM, RELIABILITY_HELP, build_picks, by_game, for_game, most_probable, most_profitable
+from ..best import HIGH, LOW, MEDIUM, RELIABILITY_HELP, build_picks, by_game, for_game, game_status, most_probable, most_profitable
 from ..coverage import INSUFFICIENT, NONE, build_coverage
 from ..labels import fmt_age
 
@@ -89,6 +89,22 @@ def _doubles_section(ctx) -> None:
     st.divider()
 
 
+def _games(rows, picks, fresh: bool, under: bool) -> None:
+    """Elenco delle partite in arrivo e del perche' alcune non hanno giocate in elenco."""
+    from ...models import utc_now
+    try:
+        gs = game_status(rows, picks, utc_now(), include_under=under, fresh_only=fresh)
+        with st.expander(f"Partite in arrivo e perché alcune non compaiono ({len(gs)})"):
+            if gs.empty:
+                st.caption("Nessuna partita in arrivo nei dati.")
+            else:
+                st.dataframe(gs, hide_index=True, width="stretch")
+                st.caption("Qui sono elencate tutte le partite non ancora iniziate nei dati scaricati. «Migliori giocate» mostra solo le quote con valore positivo secondo il modello, "
+                           "abbastanza recenti e con storico sufficiente: per questo una partita può non comparire anche se ha tante quote.")
+    except Exception as exc:  # solo informativo: non deve far cadere la pagina
+        st.caption(f"Elenco partite non disponibile ({type(exc).__name__}).")
+
+
 def _top_section(ctx) -> None:
     """Le 1-3 giocate del giorno con la probabilita' di mercato piu' alta, a prezzo corretto. Nessuna promessa di guadagno."""
     from ...models import utc_now
@@ -160,6 +176,7 @@ def render() -> None:
         ("Quote valutate", f"{n_priced} / {cov.n_quotes}", f"{cov.n_players - cov.state_counts[INSUFFICIENT] - cov.state_counts[NONE]} giocatori su {cov.n_players} con storico sufficiente", None),
     ])
     st.write("")
+    _games(rows, picks, fresh, under)
 
     if picks.empty:
         _top(ctx)

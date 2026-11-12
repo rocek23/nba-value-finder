@@ -49,7 +49,9 @@ def market_legs(rows: pd.DataFrame, now: datetime, *, include_under: bool = Fals
     Linee intere escluse (il margine a due vie non gestisce il rimborso).
     """
     from .builder import Leg, apply_min_lines
+    from .lines import near_main
 
+    rows = rows[near_main(rows)]
     cons = consensus_table(rows)
     if cons.empty:
         return []

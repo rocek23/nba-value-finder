@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 
 from .injuries import OUT, mask
+from .lines import near_main
 
 TARGETS = (2, 5, 10, 25, 50, 100)
 MIN_GAMES = 25            # sotto questo storico una stima non e' considerata abbastanza solida
@@ -161,6 +162,8 @@ def eligible_legs(rows: pd.DataFrame, now: datetime, *, markets: Sequence[str] |
         return [], [("Quote disponibili", 0)]
     d = rows
     funnel.append(("Quote disponibili", len(d)))
+    d = d[near_main(d)]
+    funnel.append(("Linea principale o adiacente (niente linee molto basse)", len(d)))
     d = d[d["priced"]]
     funnel.append(("Con probabilità stimata dal modello", len(d)))
     d = d[~d["manuale"] & ~d["obsoleta"]]

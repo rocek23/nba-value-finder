@@ -266,7 +266,7 @@ def test_page_live_snapshot_uses_only_real_quotes_and_one_selection_per_game(iso
         logs[key] = generate_player(TruePlayer(name=name), 45, i + 1)
         players[key] = {"name": name, "team": f"H{i}"}
         for s, o in ((Side.OVER, 2.2), (Side.UNDER, 1.6)):
-            qs.append(OddsQuote("the_odds_api", "book_x", f"e{i}", name, None, Market.POINTS, 5.5, s, o, now, now, f"H{i}", f"A{i}", now + timedelta(hours=6), False))
+            qs.append(OddsQuote("the_odds_api", "book_x", f"e{i}", name, None, Market.POINTS, 17.5, s, o, now, now, f"H{i}", f"A{i}", now + timedelta(hours=6), False))
     save_snapshot(Snapshot(fetched_at=now, quotes=qs, logs=logs, players=players,
                            providers=[{"name": "The Odds API", "status": "ok", "detail": "test", "n_quotes": len(qs)}]))
     at = AppTest.from_file(APP, default_timeout=240)
@@ -293,3 +293,19 @@ def test_min_lines_drops_lines_below_bookmaker_minimum():
     assert out["linea"].tolist() == [1.5, 0.5] and out["mercato"].tolist() == ["Assist", "Punti"]
     assert len(apply_min_lines(d, None)) == 3 and len(apply_min_lines(d, {})) == 3
     assert default_min_lines(d) == {"Assist": 1.5}
+
+
+def test_eligible_legs_drops_model_far_above_quote_probability():
+    # modello 99% su una quota 2.00 (probabilita' implicita 50%): quasi sempre un mercato diverso (es. primo quarto) -> scartata
+    rows = pd.DataFrame([make_rows(prop_id="ok", quota=2.2, p_win=.5), make_rows(prop_id="wrong", quota=2.0, p_win=.99, p_win_lo=.9, p_win_hi=1.0)])
+    legs, funnel = B.eligible_legs(rows, pd.Timestamp("2029-12-31", tz="UTC").to_pydatetime())
+    assert [l.prop_id for l in legs] == ["ok"]
+    assert any("coerente" in lab for lab, _ in funnel)
+
+
+def test_note_extra_fields_collects_unknown_keys_and_prop_types():
+    from nba_vf.adapters.balldontlie import _note_extra_fields
+    acc = {}
+    _note_extra_fields(acc, {"id": 1, "prop_type": "points", "line_value": "6.5", "period": "1Q", "market": {"type": "over_under", "over_odds": -110, "scope": "quarter"}})
+    _note_extra_fields(acc, {"id": 2, "prop_type": "points", "period": "full"})
+    assert acc["period"] == ["1Q", "full"] and acc["market.scope"] == ["quarter"] and acc["prop_type"] == ["points"]

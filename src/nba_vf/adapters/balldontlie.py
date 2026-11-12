@@ -126,6 +126,30 @@ class PropsResult:
     skipped_milestone: int = 0
     skipped_invalid: int = 0
     raw_count: int = 0
+    extra_fields: dict = field(default_factory=dict)  # campi non previsti visti nelle righe (diagnostica: periodo, quarto, ecc.)
+
+
+KNOWN_ROW_KEYS = {"id", "game_id", "player_id", "vendor", "prop_type", "line_value", "market", "updated_at"}
+KNOWN_MARKET_KEYS = {"type", "over_odds", "under_odds"}
+
+
+def _note_extra_fields(acc: dict, row: dict[str, Any]) -> None:
+    """Annota (al massimo 5 valori distinti per campo) i campi delle righe props che il parser non conosce."""
+    if not isinstance(row, dict):
+        return
+    items = [(k, v) for k, v in row.items() if k not in KNOWN_ROW_KEYS and k != "market"]
+    mk = row.get("market")
+    if isinstance(mk, dict):
+        items += [(f"market.{k}", v) for k, v in mk.items() if k not in KNOWN_MARKET_KEYS]
+    for k, v in items:
+        vals = acc.setdefault(k, [])
+        text = str(v)[:30]
+        if text not in vals and len(vals) < 5:
+            vals.append(text)
+    pt = str(row.get("prop_type"))
+    vals = acc.setdefault("prop_type", [])
+    if pt not in vals and len(vals) < 12:
+        vals.append(pt)
 
 
 def parse_prop_row(row: dict[str, Any], fetched_at: datetime) -> tuple[list[OddsQuote], str | None]:
@@ -320,6 +344,7 @@ class BalldontlieAdapter:
             rows = body.get("data", []) if isinstance(body, dict) else []
             for row in rows:
                 result.raw_count += 1
+                _note_extra_fields(result.extra_fields, row)
                 quotes, reason = parse_prop_row(row, fetched_at)
                 result.quotes.extend(quotes)
                 if reason == "unsupported_type":

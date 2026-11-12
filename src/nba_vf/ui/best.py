@@ -67,6 +67,7 @@ def market_prob(rows: pd.DataFrame, d: pd.DataFrame) -> np.ndarray:
 
 from .lines import near_main
 
+MAX_MODEL_GAP = 0.25  # il modello non puo' stimare piu' di 25 punti sopra la probabilita' della quota: oltre e' quasi sempre un dato sbagliato (mercato diverso, es. primo quarto)
 MIN_ODDS = 1.20  # sotto questa quota il bookmaker di solito non quota la giocata e il guadagno e' trascurabile
 
 
@@ -75,7 +76,7 @@ def build_picks(rows: pd.DataFrame, stake: float, *, include_low: bool = False, 
     """Una riga per giocata (prop + lato) con la migliore quota disponibile e solo valore atteso > 0."""
     if rows is None or rows.empty:
         return pd.DataFrame(columns=["key"] + PICK_COLUMNS + ["prop_id", "lato"])
-    d = rows[(rows["priced"] & (rows["roi"] > 0) & (rows["quota"] >= MIN_ODDS)).values & near_main(rows)]
+    d = rows[(rows["priced"] & (rows["roi"] > 0) & (rows["quota"] >= MIN_ODDS) & (rows["p_win"] - 1.0 / rows["quota"] <= MAX_MODEL_GAP)).values & near_main(rows)]
     if "infortunio" in d.columns:  # un giocatore segnalato «Out» non gioca: la giocata non ha una probabilita' sensata
         d = d[mask(d["infortunio"].fillna(""), lambda l: l != OUT)]
     if not include_under:

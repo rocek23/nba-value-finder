@@ -130,6 +130,7 @@ class LiveCollector:
                 providers.append(_prov("BALLDONTLIE (props)", "non_configurato", "BALLDONTLIE_API_KEY assente"))
             else:
                 n_q, status, detail = 0, "ok", ""
+                extra: dict[str, list] = {}
                 try:
                     for day in nba_dates(now, opts.days_ahead):
                         for g in self.bdl.get_games(day)[:MAX_BDL_GAMES_PER_DAY]:
@@ -142,7 +143,12 @@ class LiveCollector:
                                 api_quotes.append(replace(q, home_team=home, away_team=away,
                                                           commence_time=parse_iso(g.get("datetime") or g.get("date"))))
                             n_q += len(res.quotes)
+                            for k, vals in (getattr(res, "extra_fields", None) or {}).items():
+                                acc = extra.setdefault(k, [])
+                                acc.extend(v for v in vals if v not in acc and len(acc) < 12)
                     detail = f"{n_q} quote"
+                    if extra:
+                        detail += " · campi delle righe: " + "; ".join(f"{k}={'/'.join(v)}" for k, v in sorted(extra.items()))
                 except TierError as exc:
                     status, detail = "non_disponibile", f"piano insufficiente per le props: {self._err(exc)}"
                 except ApiError as exc:

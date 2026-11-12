@@ -164,6 +164,8 @@ def eligible_legs(rows: pd.DataFrame, now: datetime, *, markets: Sequence[str] |
     funnel.append(("Quote disponibili", len(d)))
     d = d[near_main(d)]
     funnel.append(("Linea principale o adiacente (niente linee molto basse)", len(d)))
+    d = d[(d["p_win"] - 1.0 / d["quota"]).fillna(0) <= 0.25]
+    funnel.append(("Stima del modello coerente con la quota (differenza al massimo 25 punti)", len(d)))
     d = d[d["priced"]]
     funnel.append(("Con probabilità stimata dal modello", len(d)))
     d = d[~d["manuale"] & ~d["obsoleta"]]

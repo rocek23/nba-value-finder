@@ -168,3 +168,10 @@ def test_market_prob_uses_other_books_only_and_is_nan_with_few_books():
     assert np.isnan(market_prob(few, few[(few["lato"] == "Over") & (few["book"] == "A")])[0])
     whole = rows.assign(linea=25.0)
     assert np.isnan(market_prob(whole, whole[(whole["lato"] == "Over") & (whole["book"] == "A")])[0])
+
+
+def test_picks_exclude_odds_below_minimum():
+    import pandas as pd
+    from nba_vf.ui.best import MIN_ODDS, build_picks
+    assert MIN_ODDS >= 1.2
+    assert build_picks(pd.DataFrame(), 10).empty

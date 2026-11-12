@@ -61,7 +61,7 @@ def market_legs(rows: pd.DataFrame, now: datetime, *, include_under: bool = Fals
     if not include_under:
         d = d[d["lato"] == "Over"]
     d = d[(d["linea"] % 1).abs() > 1e-9]
-    d = d[(d["quota"] <= odds_max) & (d["quota"] > 1.0) & (d["p_equa"] >= p_min) & (d["n_altri"] >= min_books)]
+    d = d[(d["quota"] <= odds_max) & (d["quota"] >= 1.20) & (d["p_equa"] >= p_min) & (d["n_altri"] >= min_books)]
     d = apply_min_lines(d, min_lines)
     legs = []
     for r in d.itertuples():

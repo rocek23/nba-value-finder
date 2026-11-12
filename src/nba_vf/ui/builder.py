@@ -170,7 +170,7 @@ def eligible_legs(rows: pd.DataFrame, now: datetime, *, markets: Sequence[str] |
     funnel.append(("Partita non ancora iniziata", len(d)))
     d = d[d["n_partite"] >= min_games]
     funnel.append((f"Storico di almeno {min_games} partite", len(d)))
-    d = d[d["p_win_lo"].notna() & d["p_win_hi"].notna() & (d["p_win"] > 0) & (d["quota"] > 1)]
+    d = d[d["p_win_lo"].notna() & d["p_win_hi"].notna() & (d["p_win"] > 0) & (d["quota"] >= 1.20)]
     funnel.append(("Con intervallo di incertezza", len(d)))
     if "infortunio" in d.columns:
         d = d[mask(d["infortunio"].fillna(""), lambda l: l != OUT)]

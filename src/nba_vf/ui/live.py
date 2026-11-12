@@ -15,6 +15,7 @@ from collections import Counter
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from typing import Any, Callable
+from zoneinfo import ZoneInfo
 
 from ..adapters.balldontlie import BalldontlieAdapter
 from ..adapters.nba_api_adapter import NbaApiAdapter, current_season_start_year
@@ -33,6 +34,7 @@ EMPTY_LIVE_MESSAGE = (
     "mancanti con dati inventati: per vedere un esempio passa alla modalità Demo."
 )
 LOGS_MAX_AGE = timedelta(hours=12)
+NY = ZoneInfo("America/New_York")
 MAX_BDL_GAMES_PER_DAY = 30  # protezione: una giornata NBA ha al massimo ~15 partite; BALLDONTLIE GOAT non consuma crediti per partita
 MAX_PLAYERS_HARD_CAP = 400  # protezione: oltre questo numero il tempo di recupero non e' piu' ragionevole
 
@@ -62,6 +64,13 @@ def build_adapters(settings: Settings):
         if settings.odds_api_key else None
     )
     return bdl, odds, NbaApiAdapter(sleep_seconds=settings.nba_api_sleep_seconds, timeout=max(settings.http_timeout, 20.0))
+
+
+def nba_dates(now: datetime, days_ahead: int) -> list[date]:
+    """Date NBA (fuso di New York) da richiedere: la giornata NBA e' quella americana, non quella UTC.
+    Con la data UTC, dopo le 00:00 UTC (01:00 in Italia) le partite della serata americana in corso sparivano."""
+    base = now.astimezone(NY).date()
+    return [base + timedelta(days=d) for d in range(days_ahead + 1)]
 
 
 class LiveCollector:
@@ -122,8 +131,8 @@ class LiveCollector:
             else:
                 n_q, status, detail = 0, "ok", ""
                 try:
-                    for d in range(opts.days_ahead + 1):
-                        for g in self.bdl.get_games(now.date() + timedelta(days=d))[:MAX_BDL_GAMES_PER_DAY]:
+                    for day in nba_dates(now, opts.days_ahead):
+                        for g in self.bdl.get_games(day)[:MAX_BDL_GAMES_PER_DAY]:
                             res = self.bdl.get_player_props(int(g["id"]))
                             home = (g.get("home_team") or {}).get("abbreviation")
                             away = (g.get("visitor_team") or {}).get("abbreviation")
